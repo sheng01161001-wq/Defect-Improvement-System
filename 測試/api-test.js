@@ -244,6 +244,13 @@ ok(LP.name === '冀晨2' && LP.loc && LP.loc.r === 2, '只改名不會清掉位�
 okCall({ action: 'saveProject', token: TA, project: { id: 'projnew', name: '新案位置', loc: { n: 5 } } }, '新建案帶位置規劃');
 ok(okCall({ action: 'list', token: TB }, '讀').projects.find(p => p.id === 'projnew').loc.n === 5, '新建案位置規劃存對列');
 
+// 廠商分類可以複選
+const VM = okCall({ action: 'saveVendor', token: TB, vendor: { id: 'vmul01', name: '永興水電', cats: ['結構體', '室內裝修', '結構體', '亂'], trades: ['水電'], pids: ['proj01'] } }, '廠商兩個分類').vendor;
+ok(VM.cats.join() === '結構體,室內裝修' && VM.cat === '結構體', '分類去重、去掉不對的');
+ok(okCall({ action: 'list', token: TB }, '讀').vendors.find(v => v.id === 'vmul01').cats.length === 2, '讀回來兩個分類');
+badCall({ action: 'saveVendor', token: TB, vendor: { id: 'vmul02', name: '沒分類', cats: [], trades: [] } }, '沒選分類');
+ok(okCall({ action: 'saveVendor', token: TB, vendor: { id: 'vmul03', name: '舊版送法', cat: '室外裝修', trades: [] } }, '舊版只送 cat').vendor.cats.join() === '室外裝修', '舊版 cat 也可以');
+
 // 刪除廠商
 const VD = okCall({ action: 'saveVendor', token: TB, vendor: { id: 'vdel01', name: '打錯的廠商', cat: '結構體', trades: [], pids: ['proj01'] } }, '新增要刪的廠商').vendor;
 okCall({ action: 'saveDefect', token: TB, defect: Object.assign({}, D, { id: 'vdd0001', photos: [], vid: 'vdel01' }), baseV: 0 }, '開一筆給它');

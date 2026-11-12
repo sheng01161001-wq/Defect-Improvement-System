@@ -282,10 +282,10 @@ function resetData_(q) {
 // ── 廠商 ─────────────────────────────────────
 function vendors_() {
   return rows_('廠商').map(({ row, r }) => ({ row, id: String(r[0]), name: un_(r[1]), cat: String(r[2]),
-    trades: un_(r[3]).split('、').filter(String), contact: un_(r[4]), phone: un_(r[5]),
+    cats: String(r[2]).split('、').filter(c => CATS.indexOf(c) >= 0), trades: un_(r[3]).split('、').filter(String), contact: un_(r[4]), phone: un_(r[5]),
     code: String(r[6]), disabled: r[7] === '是', pids: String(r[9] || '').split(',').filter(String) }));
 }
-const pubVendor_ = v => ({ id: v.id, name: v.name, cat: v.cat, trades: v.trades, contact: v.contact, phone: v.phone, code: v.code, disabled: v.disabled, pids: v.pids });
+const pubVendor_ = v => ({ id: v.id, name: v.name, cat: (v.cats || [])[0] || v.cat, cats: v.cats || [v.cat], trades: v.trades, contact: v.contact, phone: v.phone, code: v.code, disabled: v.disabled, pids: v.pids });
 const newCode_ = () => (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 24);
 // 刪除廠商：完全沒有缺失用到才能刪（有用到的要「從建案移除」或後台「停用」，舊紀錄才看得到廠商名稱）
 function deleteVendor_(q) {
@@ -305,7 +305,9 @@ function saveVendor_(q, u) {
     if (!okId_(v.id)) throw new Error('廠商編號不對');
     const name = str_(v.name, 60);
     if (!name) throw new Error('請填廠商名稱');
-    if (CATS.indexOf(v.cat) < 0) throw new Error('請選分類');
+    // 分類可以複選（例如水電：結構體＋室內裝修）；舊版 App 只送 cat
+    const cats = (Array.isArray(v.cats) ? v.cats : [v.cat]).filter((c, i, a) => CATS.indexOf(c) >= 0 && a.indexOf(c) === i);
+    if (!cats.length) throw new Error('請選分類');
     const trades = (Array.isArray(v.trades) ? v.trades : []).map(t => str_(t, 20)).filter(String).slice(0, 30);
     // 參與的建案：同一家廠商可以在好幾個建案，回報連結共用一個
     const pidOk = {}; projects_().forEach(p => { pidOk[p.id] = 1; });
@@ -321,12 +323,12 @@ function saveVendor_(q, u) {
     if (hit && !admin && (!!v.disabled !== hit.disabled || q.resetCode)) throw new Error('停用廠商、換連結只有後台帳號能做');
     const code = !hit || q.resetCode ? newCode_() : hit.code;
     // 文字前面加 '：名稱像「3-1」「0123」「=…」才不會被試算表變成日期、數字或公式
-    const row = [v.id, txt_(name), v.cat, txt_(trades.join('、')), txt_(str_(v.contact, 30)), txt_(str_(v.phone, 30)), code, v.disabled ? '是' : '', now_(), pids.join(',')];
+    const row = [v.id, txt_(name), cats.join('、'), txt_(trades.join('、')), txt_(str_(v.contact, 30)), txt_(str_(v.phone, 30)), code, v.disabled ? '是' : '', now_(), pids.join(',')];
     const sh = sheet_('廠商');
     if (sh.getRange(1, 10).getValue() === '') sh.getRange(1, 10).setValue('建案');   // 舊表補欄名
     if (hit) sh.getRange(hit.row, 1, 1, row.length).setValues([row]);
     else sh.appendRow(row);
-    return { vendor: pubVendor_({ id: v.id, name, cat: v.cat, trades, contact: str_(v.contact, 30), phone: str_(v.phone, 30), code, disabled: !!v.disabled, pids }) };
+    return { vendor: pubVendor_({ id: v.id, name, cats, trades, contact: str_(v.contact, 30), phone: str_(v.phone, 30), code, disabled: !!v.disabled, pids }) };
   });
 }
 
