@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>小棒槌 缺失改善系統</title>
+<meta name="theme-color" content="#1f3a5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#eef2f7; --card:#fff; --ink:#16202c; --muted:#627080; --line:#d9e1ea; --steel:#1f3a5f;
+  --wait:#d64545; --doing:#e08a1e; --check:#2b7bd6; --done:#2f9e5b;
+  --c1:#6b4fa0; --c2:#2b7bd6; --c3:#2f9e5b; --line-green:#06c755;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;font-size:16px;line-height:1.5;padding-bottom:84px}
+header{position:sticky;top:0;z-index:10;background:var(--steel);color:#fff;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;gap:8px}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+header h1.pick{cursor:pointer}
+header button{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:15px;font-family:inherit}
+#sync{font-size:12px;opacity:.9;white-space:nowrap;cursor:pointer}
+main{max-width:760px;margin:0 auto;padding:12px}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;padding:6px 0 8px;font-size:12px;color:var(--muted);font-family:inherit;position:relative}
+nav button b{display:block;font-size:21px;line-height:1.3}
+nav button.on{color:var(--steel);font-weight:bold}
+nav i{position:absolute;top:2px;left:55%;background:var(--wait);color:#fff;font-style:normal;font-size:11px;border-radius:9px;padding:0 5px;min-width:18px}
+.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card h3{margin:0 0 8px;font-size:16px;color:var(--steel)}
+.muted{color:var(--muted);font-size:14px}
+.btn{display:inline-block;border:0;border-radius:10px;padding:10px 16px;font-size:16px;background:var(--steel);color:#fff;cursor:pointer;font-family:inherit;text-align:center}
+.btn.line{background:var(--line-green)}
+.btn.ok{background:var(--done)}
+.btn.ng{background:var(--wait)}
+.btn.ghost{background:#fff;color:var(--steel);border:1px solid var(--line)}
+.btn.small{padding:6px 10px;font-size:14px}
+.btn.block{display:block;width:100%;margin-top:8px}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center}
+.wrap{flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+label.f{display:block;margin:12px 0 4px;font-size:14px;color:#3b4652;font-weight:bold}
+input[type=text],input[type=date],input[type=tel],input[type=password],input[type=search],textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+textarea{min-height:70px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 12px;font-size:14px;font-family:inherit;color:var(--ink);cursor:pointer}
+.chip.on{background:var(--steel);border-color:var(--steel);color:#fff}
+.chip.add{border-style:dashed;color:var(--muted)}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;color:#fff;margin-right:4px;white-space:nowrap;vertical-align:middle}
+.s-wait{background:var(--wait)}.s-doing{background:var(--doing)}.s-check{background:var(--check)}.s-done{background:var(--done)}
+.c-結構體{background:var(--c1)}.c-室內裝修{background:var(--c2)}.c-室外裝修{background:var(--c3)}
+.tag.pend{background:#868e96}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stats button{border:0;border-radius:10px;color:#fff;padding:10px 2px;font-family:inherit;cursor:pointer}
+.stats b{display:block;font-size:26px;line-height:1.2}
+.stats span{font-size:13px}
+.item{display:flex;gap:10px;align-items:flex-start;cursor:pointer;background:#fff;border-radius:12px;padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.item.late{box-shadow:inset 4px 0 0 var(--wait),0 1px 3px rgba(0,0,0,.06)}
+.thumb{width:66px;height:66px;border-radius:8px;background:#dfe5ec;flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#8a96a3;font-size:24px}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.it-t{font-weight:bold;font-size:15px}
+.it-m{font-size:13px;color:var(--muted);margin-top:2px}
+.red{color:var(--wait);font-weight:bold}
+.bar{display:flex;align-items:center;gap:8px;font-size:14px;padding:6px 0;cursor:pointer}
+.bar .n{width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .b{flex:1;height:10px;background:#eef1f5;border-radius:5px;overflow:hidden}
+.bar .b i{display:block;height:100%}
+.bar .c{width:70px;text-align:right;color:var(--muted);font-size:13px}
+.photos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.ph{position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;background:#dfe5ec;cursor:pointer}
+.ph img{width:100%;height:100%;object-fit:cover}
+.ph .x{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:0;border-radius:50%;width:24px;height:24px;font-size:13px;line-height:24px;padding:0}
+.addph{width:80px;height:80px;border:2px dashed #b7c0cc;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:13px;color:var(--muted);cursor:pointer;background:#fff}
+.addph b{font-size:22px;line-height:1.1}
+.addph input{display:none}
+.kv{width:100%;border-collapse:collapse;font-size:15px}
+.kv th{width:84px;text-align:left;color:var(--muted);font-weight:normal;padding:5px 0;vertical-align:top}
+.kv td{padding:5px 0}
+.log{font-size:13px;line-height:1.8;color:#3b4652}
+.log span{color:var(--muted);margin-right:6px}
+.sub{border-left:4px solid var(--line);padding:6px 10px;margin:8px 0;background:#f7f9fb;border-radius:0 8px 8px 0;font-size:14px}
+.sub.fix{border-left-color:var(--check)}.sub.ok{border-left-color:var(--done)}.sub.ng{border-left-color:var(--wait)}
+.empty{text-align:center;color:var(--muted);padding:30px 10px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.modal .sheet{background:#fff;width:100%;max-width:760px;border-radius:16px 16px 0 0;padding:16px;max-height:88vh;overflow:auto;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+.viewer{position:fixed;inset:0;background:#000;z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.viewer img{max-width:100%;max-height:calc(100% - 70px)}
+.viewer .vb{position:absolute;bottom:16px;display:flex;gap:10px}
+.draw{position:fixed;inset:0;background:#111;z-index:65;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.draw canvas{touch-action:none;max-width:100%;max-height:calc(100% - 80px);background:#000}
+.draw .vb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:center}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#222;color:#fff;padding:8px 16px;border-radius:20px;z-index:70;font-size:14px;max-width:90%;text-align:center}
+.ver{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
+.login{max-width:380px;margin:30px auto}
+.user-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.user-row:last-child{border-bottom:0}
+.hl{animation:hl 2s}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px #f59f00}}
+/* 通知單 */
+.notice{background:#fff;padding:24px 22px;margin-bottom:16px;font-size:14px;color:#000}
+.notice h2{text-align:center;margin:0 0 4px;letter-spacing:6px;font-size:22px}
+.notice .no{text-align:center;color:#333;margin-bottom:12px}
+.notice table{width:100%;border-collapse:collapse}
+.notice td,.notice th{border:1px solid #333;padding:6px 8px;vertical-align:top;text-align:left}
+.notice th{background:#eef1f5;width:86px;white-space:nowrap}
+.notice .pics{display:flex;flex-wrap:wrap;gap:6px}
+.notice .pics img{width:180px;height:135px;object-fit:cover;border:1px solid #999}
+.notice .sign th{text-align:center;width:25%}
+.notice .sign td{height:60px}
+.notice .foot{font-size:12px;color:#333;margin-top:8px;line-height:1.6}
+@media print{
+  header,nav,.noprint{display:none!important}
+  body{background:#fff;padding:0}
+  main{max-width:none;padding:0}
+  .notice{padding:0;margin:0;page-break-after:always}
+  .notice:last-child{page-break-after:auto}
+  .notice th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<header>
+  <button id="backBtn" onclick="goBack()" style="display:none">‹ 返回</button>
+  <h1 id="title">缺失改善系統</h1>
+  <span id="sync" onclick="syncNow()"></span>
+  <button id="hdrRight" style="display:none"></button>
+</header>
+<main id="app"></main>
+<nav id="nav" style="display:none"></nav>
+<div id="layer"></div>
+
+<script src="data.js"></script>
+<script>
+'use strict';
+const VERSION = 'v1';
+// 後端網址（Google Apps Script 網頁應用程式）
+const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
+
+// ── 小工具 ─────────────────────────────
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// 放進 onclick="…" 裡的字串參數（含引號的工項名稱也不會壞掉）
+const jsq = s => esc(JSON.stringify(String(s)));
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const today = () => ymd(new Date());
+const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); };
+const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00:00')) / 864e5);
+const md = s => s ? Number(s.slice(5, 7)) + '/' + Number(s.slice(8, 10)) : '';
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+let toastT;
+function toast(m) {
+  clearTimeout(toastT);
+  let el = document.querySelector('.toast');
+  if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
+  el.textContent = m;
+  toastT = setTimeout(() => el.remove(), 3000);
+}
+
+const ST = { wait: '待改善', doing: '改善中', check: '待複查', done: '已結案' };
+const OPEN = s => s !== 'done';
+const isLate = d => (d.status === 'wait' || d.status === 'doing') && d.due < today();
+const locText = d => [d.bldg, d.floor, d.spot].filter(Boolean).join(' ');
+const noText = d => d.no ? '#' + String(d.no).padStart(4, '0') : '（未上傳）';
+const stTag = d => `<span class="tag s-${d.status}">${ST[d.status]}</span>`;
+const catTag = c => `<span class="tag c-${esc(c)}">${esc(c)}</span>`;
+function dueText(d, bare) {
+  const L = bare ? '' : '期限 ';
+  if (!OPEN(d.status)) return L + md(d.due);
+  const n = daysBetween(today(), d.due);
+  if (isLate(d)) return `<span class="red">${L}${md(d.due)}，已逾 ${-n} 天</span>`;
+  return L + md(d.due) + (d.status === 'check' ? '' : n === 0 ? '（今天）' : `（剩 ${n} 天）`);
+}
+
+// 本機測試可用 ?api=網址 改連模擬後端
+const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const QS = new URLSearchParams(location.search);
+if (QS.get('api') && LOCAL) localStorage.setItem('dfi_api', QS.get('api'));
+const API = (LOCAL && localStorage.getItem('dfi_api')) || API_DEFAULT;
+const VCODE = QS.get('v');   // 廠商回報連結
+const BASE = location.origin + location.pathname.replace(/index\.html$/, '');
+
+// ── 本機暫存（IndexedDB）─────────
+let dbP = null;
+function db() {
+  if (!dbP) dbP = new Promise((res, rej) => {
+    const r = indexedDB.open('defect-improvement', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('photos'); r.result.createObjectStore('kv'); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return dbP;
+}
+async function idbPut(store, key, val) {
+  const d = await db();
+  return new Promise((res, rej) => { const t = d.transaction(store, 'readwrite'); t.objectStore(store).put(val, key); t.oncomplete = res; t.onerror = () => rej(t.error); });
+}
+async function idbGet(store, key) {
+  const d = await db();
+  return new Promise(res => { const r = d.transaction(store).objectStore(store).get(key); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+}
+
+// ── 照片 ─────────────────────────────
+const photoCache = {}, fetchingPh = new Set();
+async function photoGet(id) {
+  if (!photoCache[id]) photoCache[id] = await idbGet('photos', id);
+  return photoCache[id];
+}
+async function photoPut(id, data) { photoCache[id] = data; await idbPut('photos', id, data); }
+const imgTag = id => `<img data-pid="${esc(id)}" alt="">`;
+const phView = id => `<div class="ph" onclick="viewPhoto('${esc(id)}')">${imgTag(id)}</div>`;
+// 畫面上的 <img data-pid> 補上照片：先找手機暫存，沒有再跟後端拿
+async function hydratePhotos(root) {
+  const need = [];
+  for (const img of (root || document).querySelectorAll('img[data-pid]')) {
+    const id = img.dataset.pid, data = await photoGet(id);
+    if (data) img.src = data;
+    else if (!fetchingPh.has(id) && !need.includes(id)) need.push(id);
+  }
+  if (!need.length || (!auth && !VCODE)) return;
+  need.forEach(id => fetchingPh.add(id));
+  for (let i = 0; i < need.length; i += 8) {
+    try {
+      const ids = need.slice(i, i + 8);
+      const r = VCODE ? await api('vendorPhotos', { code: VCODE, ids }) : await api('getPhotos', { ids });
+      for (const [id, data] of Object.entries(r.photos)) {
+        await photoPut(id, data);
+        document.querySelectorAll(`img[data-pid="${id}"]`).forEach(im => { im.src = data; });
+      }
+    } catch (e) { break; }
+  }
+  need.forEach(id => fetchingPh.delete(id));
+}
+// 壓縮照片：長邊 1280px、JPEG 品質 0.7
+function compress(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', 0.7));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('讀不到照片')); };
+    im.src = url;
+  });
+}
+// 加照片的按鈕（拍照／相簿）。onAdd(id) 每張照片存好後呼叫
+function photoAdders(key) {
+  return `<label class="addph"><b>📷</b>拍照<input type="file" accept="image/*" capture="environment" onchange="addPhotos(this,'${key}')"></label>
+    <label class="addph"><b>🖼</b>相簿<input type="file" accept="image/*" multiple onchange="addPhotos(this,'${key}')"></label>`;
+}
+const photoTargets = {};
+async function addPhotos(input, key) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  for (const f of files) {
+    try {
+      const data = await compress(f), id = uid();
+      await photoPut(id, data);
+      photoTargets[key](id);
+    } catch (e) { toast(e.message); }
+  }
+}
+function viewPhoto(id, onDraw) {
+  const L = $('layer');
+  L.innerHTML = `<div class="viewer" onclick="if(event.target===this||event.target.tagName==='IMG')closeLayer()">${imgTag(id)}
+    <div class="vb">${onDraw ? '<button class="btn line" id="drawBtn">✏️ 畫圈標示</button>' : ''}<button class="btn ghost" onclick="closeLayer()">關閉</button></div></div>`;
+  hydratePhotos(L);
+  if (onDraw) $('drawBtn').onclick = () => annotate(id, onDraw);
+}
+function closeLayer() { $('layer').innerHTML = ''; }
+// 在照片上畫圈：畫好存成一張新照片
+async function annotate(id, done) {
+  const data = await photoGet(id);
+  if (!data) { toast('照片還沒載入'); return; }
+  const im = new Image();
+  im.onload = () => {
+    const L = $('layer');
+    L.innerHTML = `<div class="draw"><canvas id="cv"></canvas><div class="vb">
+      <button class="btn ghost small" id="dUndo">↶ 復原</button><button class="btn ghost small" id="dCancel">取消</button>
+      <button class="btn ok small" id="dOk">完成</button></div><div class="muted" style="color:#ccc;margin-top:6px">用手指在照片上圈出缺失位置</div></div>`;
+    const cv = $('cv'), ctx = cv.getContext('2d');
+    cv.width = im.width; cv.height = im.height;
+    const strokes = [];
+    let cur = null;
+    const redraw = () => {
+      ctx.drawImage(im, 0, 0);
+      ctx.strokeStyle = '#ff2020'; ctx.lineWidth = Math.max(4, im.width / 160); ctx.lineCap = ctx.lineJoin = 'round';
+      strokes.forEach(s => { ctx.beginPath(); s.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke(); });
+    };
+    const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.onpointerdown = e => { cv.setPointerCapture(e.pointerId); cur = [pt(e)]; strokes.push(cur); redraw(); };
+    cv.onpointermove = e => { if (cur) { cur.push(pt(e)); redraw(); } };
+    cv.onpointerup = cv.onpointercancel = () => { cur = null; };
+    $('dUndo').onclick = () => { strokes.pop(); redraw(); };
+    $('dCancel').onclick = closeLayer;
+    $('dOk').onclick = async () => {
+      if (!strokes.length) { closeLayer(); return; }
+      const nid = uid();
+      await photoPut(nid, cv.toDataURL('image/jpeg', 0.75));
+      closeLayer(); done(nid);
+    };
+    redraw();
+  };
+  im.src = data;
+}
+// 照片列：可刪、可點開、可畫圈
+function photoRow(ids, key, editable) {
+  return ids.map((id, i) => `<div class="ph" onclick="photoClick('${key}',${i})">${imgTag(id)}${editable ? `<button class="x" onclick="event.stopPropagation();photoDelete('${key}',${i})">✕</button>` : ''}</div>`).join('');
+}
+const photoLists = {};   // key → { get: () => 陣列, editable, changed }
+function photoClick(key, i) {
+  const P = photoLists[key], ids = P.get();
+  viewPhoto(ids[i], P.editable ? nid => { ids[i] = nid; P.changed(); } : null);
+}
+function photoDelete(key, i) { const P = photoLists[key]; P.get().splice(i, 1); P.changed(); }
+
+// ── 帳號與雲端 ─────────────────────────────
+let auth = null;
+try { auth = JSON.parse(localStorage.getItem('dfi_auth') || 'null'); } catch (e) {}
+if (auth && auth.api !== API) auth = null;
+const isAdmin = () => !!(auth && auth.me.role === 'admin');
+const ROLE_NAME = { admin: '後台', staff: '工地人員' };
+class ServerError extends Error {}
+async function api(action, data) {
+  if (!API) throw new ServerError('還沒設定後端網址');
+  let res;
+  try { res = await fetch(API, { method: 'POST', body: JSON.stringify(Object.assign({ action, token: auth && auth.token }, data || {})) }); }
+  catch (e) { throw new Error('連不上網路'); }
+  let j;
+  try { j = await res.json(); } catch (e) { throw new Error('伺服器忙碌，稍後再試'); }
+  if (j.auth) { if (!VCODE) logout(true); throw new ServerError(j.err || '請重新登入'); }
+  if (!j.ok && !j.conflict && !j.gone) throw new ServerError(j.err || '發生錯誤');
+  return j;
+}
+function setAuth(r) { auth = { api: API, token: r.token, me: r.me }; localStorage.setItem('dfi_auth', JSON.stringify(auth)); }
+async function logout(expired) {
+  if (!expired && pendingCount() && !confirm(`還有 ${pendingCount()} 筆資料沒上傳，登出會丟掉。確定登出？`)) return;
+  auth = null; localStorage.removeItem('dfi_auth');
+  // 登入過期：還沒上傳的資料留在手機，重新登入後繼續上傳；自己按登出才清掉
+  if (!expired) { state = emptyState(); outbox = emptyBox(); }
+  await persistNow();
+  stack.length = 0; view = { name: 'login' }; closeLayer(); render();
+  if (expired) toast('登入已過期，請重新登入');
+}
+
+// ── 資料（雲端副本＋還沒上傳的修改）─────────
+const emptyState = () => ({ projects: [], vendors: [], defects: {} });
+const emptyBox = () => ({ ph: [], d: {}, del: [] });
+let state = emptyState(), outbox = emptyBox(), seq = 0;
+const CK = 'cache:' + API, OK = 'outbox:' + API;
+let saveTimer, saving = Promise.resolve();
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(persistNow, 200); scheduleSync(); setSyncUI(); }
+function persistNow() {
+  clearTimeout(saveTimer);
+  saving = saving.then(() => Promise.all([idbPut('kv', CK, state), idbPut('kv', OK, outbox)])).catch(e => toast('儲存失敗：' + e.message));
+  setSyncUI();
+  return saving;
+}
+// 存一筆缺失（之後自動上傳）
+function saveD(d, newPhotos) {
+  state.defects[d.id] = d;
+  outbox.d[d.id] = ++seq;
+  (newPhotos || []).forEach(id => { if (!outbox.ph.includes(id)) outbox.ph.push(id); });
+  persist();
+}
+const pendingCount = () => outbox.ph.length + Object.keys(outbox.d).length + outbox.del.length;
+const isPending = id => !!outbox.d[id];
+let syncing = false, pulling = false, pullAgain = false, syncErr = '', syncTimer, lastPull = 0;
+function setSyncUI() {
+  const el = $('sync');
+  if (!auth || VCODE) { el.textContent = ''; return; }
+  const n = pendingCount();
+  el.textContent = syncing ? '⏳ 上傳中' : n ? (syncErr ? `⚠️ ${n} 筆未上傳` : `⏳ ${n}`) : '☁️ 已同步';
+  el.title = syncErr || '';
+}
+function scheduleSync(ms) { clearTimeout(syncTimer); syncTimer = setTimeout(sync, ms || 800); }
+function syncNow() { if (syncErr) toast(syncErr); return sync(); }
+// 上傳給後端的欄位（v、at、who 是後端的）
+function payload(d) { const o = clone(d); delete o.v; delete o.at; delete o.who; return o; }
+const SERVER_KEYS = ['no', 'created', 'by', 'byUser', 'fixes', 'log', 'acked'];
+async function sync() {
+  if (!auth || syncing) return;
+  if (pulling) { scheduleSync(1500); return; }
+  if (!pendingCount()) { syncErr = ''; setSyncUI(); return; }
+  syncing = true; setSyncUI();
+  // 伺服器拒絕的（不是網路問題）就略過，不要卡住後面的資料
+  const skipBad = async fn => { try { return await fn(); } catch (e) { if (!(e instanceof ServerError)) throw e; toast(e.message); return null; } };
+  let needPull = false;
+  try {
+    while (outbox.ph.length) {
+      const id = outbox.ph[0], data = await photoGet(id);
+      if (data) await skipBad(() => api('uploadPhoto', { id, data }));
+      outbox.ph.shift(); await persistNow();
+    }
+    while (outbox.del.length) {
+      await skipBad(() => api('deleteDefect', { id: outbox.del[0] }));
+      outbox.del.shift(); await persistNow();
+    }
+    for (const [id, n] of Object.entries(outbox.d)) {
+      const d = state.defects[id];
+      if (!d) { delete outbox.d[id]; continue; }
+      const r = await skipBad(() => api('saveDefect', { defect: payload(d), baseV: d.v || 0 }));
+      if (!r) { delete outbox.d[id]; needPull = true; }
+      else if (r.conflict) { state.defects[id] = r.defect; delete outbox.d[id]; toast(r.err + '，請再確認一次'); }
+      else if (r.gone) { delete state.defects[id]; delete outbox.d[id]; toast(r.err); }
+      else if (outbox.d[id] === n) { state.defects[id] = r.defect; delete outbox.d[id]; }
+      else {
+        // 上傳時又改了：保留手機上的新修改，只更新後端管的欄位，等一下再傳一次
+        const cur = state.defects[id];
+        SERVER_KEYS.forEach(k => { cur[k] = r.defect[k]; });
+        cur.v = r.v;
+        cur.reviews = r.defect.reviews.concat((cur.reviews || []).slice(r.defect.reviews.length));
+      }
+      await persistNow();
+    }
+    syncErr = '';
+  } catch (e) { syncErr = e.message; }
+  syncing = false;
+  setSyncUI(); render(true);
+  if (pendingCount()) scheduleSync(syncErr ? 20000 : 300);
+  else if (needPull || pullAgain) { pullAgain = false; pull(true); }
+}
+// 從雲端拿最新資料（還沒上傳的修改蓋在上面）
+async function pull(quiet) {
+  if (!auth) return;
+  if (pulling || syncing) { pullAgain = true; return; }
+  pulling = true;
+  try {
+    const r = await api('list');
+    const defects = {};
+    r.defects.forEach(d => { defects[d.id] = d; });
+    Object.keys(outbox.d).forEach(id => { if (state.defects[id]) defects[id] = state.defects[id]; });
+    outbox.del.forEach(id => { delete defects[id]; });
+    state = { projects: r.projects, vendors: r.vendors, defects };
+    lastPull = Date.now();
+    await persistNow();
+  } catch (e) { if (!quiet) toast(e.message); }
+  pulling = false;
+  render(true);
+  if (pullAgain) { pullAgain = false; setTimeout(() => pull(true), 100); }
+  if (pendingCount()) scheduleSync();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) persistNow();
+  else if (auth && !VCODE && Date.now() - lastPull > 30000) pull(true);
+});
+window.addEventListener('pagehide', () => persistNow());
+window.addEventListener('online', () => { if (auth) syncNow(); });
+
+// ── 目前建案 ─────────────────────────────
+const activeProjects = () => state.projects.filter(p => !p.disabled);
+function curP() {
+  const id = localStorage.getItem('dfi_pid');
+  return state.projects.find(p => p.id === id && !p.disabled) || activeProjects()[0] || null;
+}
+const projDefects = () => { const p = curP(); return p ? Object.values(state.defects).filter(d => d.pid === p.id) : []; };
+const vendorOf = id => state.vendors.find(v => v.id === id);
+const vName = id => { const v = vendorOf(id); return v ? v.name : '（未指定廠商）'; };
+function pickProject() {
+  const ps = activeProjects();
+  if (!ps.length) { if (isAdmin()) go({ name: 'projects' }); return; }
+  sheet(`<h3>選擇建案</h3>${ps.map(p => `<div class="user-row" onclick="localStorage.setItem('dfi_pid','${p.id}');closeLayer();render()"><b class="grow">${esc(p.name)}</b>${curP() && curP().id === p.id ? '✔' : ''}</div>`).join('')}
+    ${isAdmin() ? '<button class="btn ghost block" onclick="closeLayer();go({name:\'projects\'})">管理建案</button>' : ''}`);
+}
+function sheet(html) {
+  $('layer').innerHTML = `<div class="modal" onclick="if(event.target===this)closeLayer()"><div class="sheet">${html}</div></div>`;
+  hydratePhotos($('layer'));
+}
+
+// ── 畫面切換 ─────────────────────────────
+let view = { name: 'home' };
+const stack = [];
+const TABS = [['home', '🏠', '總覽'], ['edit', '📷', '新增缺失'], ['list', '📋', '清單'], ['review', '✅', '複查'], ['vendors', '🏢', '廠商']];
+function go(v) { stack.push(view); view = v; render(); scrollTo(0, 0); }
+function tab(name) {
+  stack.length = 0;
+  if (name === 'list') LF.vid = null;
+  if (name === 'edit' && view.name === 'edit' && !view.id) return;
+  view = name === 'edit' ? { name: 'edit' } : { name };
+  if (name === 'edit') startDraft(null);
+  render(); scrollTo(0, 0);
+}
+function goBack() {
+  if (view.name === 'edit' && view.id && draftDirty && !confirm('修改還沒存，確定離開？')) return;
+  view = stack.pop() || { name: 'home' };
+  if (view.name === 'edit' && !view.id) startDraft(null);
+  render();
+}
+function render(soft) {
+  // soft：背景資料更新時，正在打字的畫面不要重畫
+  if (soft && ['edit', 'login', 'notice', 'userEdit'].includes(view.name)) { setNav(); return; }
+  if (soft && document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.closest('#app')) { setNav(); return; }
+  const y = soft ? scrollY : 0;
+  $('hdrRight').style.display = 'none';
+  $('title').className = '';
+  $('title').onclick = null;
+  if (VCODE) { renderVendorPortal(); return; }
+  if (!auth) view = { name: 'login' };
+  const fn = VIEWS[view.name] || VIEWS.home;
+  $('backBtn').style.display = stack.length ? '' : 'none';
+  $('app').innerHTML = fn();
+  setNav(); setSyncUI();
+  if (soft) scrollTo(0, y);
+  hydratePhotos($('app'));
+  if (AFTER[view.name]) AFTER[view.name]();
+}
+function setNav() {
+  const N = $('nav');
+  const show = auth && !VCODE && !['login', 'notice'].includes(view.name);
+  N.style.display = show ? 'flex' : 'none';
+  if (!show) return;
+  const root = stack.length ? (stack[0].name) : view.name;
+  const nCheck = projDefects().filter(d => d.status === 'check').length;
+  N.innerHTML = TABS.map(([k, ic, n]) => `<button class="${root === k ? 'on' : ''}" onclick="tab('${k}')"><b>${ic}</b>${n}${k === 'review' && nCheck ? `<i>${nCheck}</i>` : ''}</button>`).join('');
+}
+function hdr(title, opt) {
+  $('title').textContent = title;
+  if (opt && opt.pick) { $('title').className = 'pick'; $('title').onclick = pickProject; }
+  if (opt && opt.right) { const b = $('hdrRight'); b.style.display = ''; b.textContent = opt.right[0]; b.onclick = opt.right[1]; }
+}
+const VIEWS = {}, AFTER = {};
+
+// ── 登入 ─────────────────────────────
+let hasUsers = null;
+VIEWS.login = () => {
+  hdr('缺失改善系統');
+  if (!API) return `<div class="card login"><h3>還沒設定後端</h3><p class="muted">請聯絡管理者。</p></div>`;
+  if (hasUsers === null) {
+    api('hasUsers').then(r => { hasUsers = r.has; render(); }).catch(e => { $('app').innerHTML = `<div class="card login"><p>${esc(e.message)}</p><button class="btn block" onclick="render()">再試一次</button></div>`; });
+    return '<div class="empty">連線中…</div>';
+  }
+  const first = !hasUsers;
+  return `<div class="card login"><h3>${first ? '建立第一個後台帳號' : '登入'}</h3>
+    ${first ? '<p class="muted">第一次使用，請先建立後台管理者帳號。</p>' : ''}
+    <label class="f">帳號</label><input type="text" id="lu" autocapitalize="off" autocomplete="username">
+    ${first ? '<label class="f">姓名</label><input type="text" id="ln">' : ''}
+    <label class="f">密碼</label><input type="password" id="lp" autocomplete="${first ? 'new-password' : 'current-password'}">
+    <button class="btn block" id="lb" onclick="doLogin(${first})">${first ? '建立並登入' : '登入'}</button>
+    <div class="ver">${VERSION}</div></div>`;
+};
+async function doLogin(first) {
+  const b = $('lb'); b.disabled = true;
+  try {
+    const q = { user: $('lu').value, pass: $('lp').value };
+    if (first) q.name = $('ln').value;
+    const r = await api(first ? 'setupFirst' : 'login', q);
+    setAuth(r);
+    const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
+    if (saved) state = saved;
+    if (box) outbox = box;
+    view = { name: 'home' }; render(); pull();
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+
+// ── 總覽 ─────────────────────────────
+VIEWS.home = () => {
+  const p = curP();
+  hdr(p ? p.name + ' ▾' : '缺失改善系統', { pick: true, right: ['⚙', () => go({ name: 'settings' })] });
+  if (!p) return `<div class="card"><h3>還沒有建案</h3>${isAdmin()
+    ? '<p class="muted">先新增一個建案，才能開始記缺失。</p><button class="btn block" onclick="go({name:\'projects\'})">新增建案</button>'
+    : '<p class="muted">請後台人員先新增建案。</p><button class="btn ghost block" onclick="pull()">重新整理</button>'}</div>`;
+  const ds = projDefects(), cnt = s => ds.filter(d => d.status === s).length;
+  const late = ds.filter(isLate).sort((a, b) => a.due.localeCompare(b.due));
+  const soon = ds.filter(d => (d.status === 'wait' || d.status === 'doing') && !isLate(d) && daysBetween(today(), d.due) <= 2).sort((a, b) => a.due.localeCompare(b.due));
+  // 各廠商未結案
+  const byV = {};
+  ds.filter(d => OPEN(d.status)).forEach(d => { const k = d.vid || ''; (byV[k] = byV[k] || { n: 0, late: 0 }).n++; if (isLate(d)) byV[k].late++; });
+  const vs = Object.entries(byV).sort((a, b) => b[1].n - a[1].n), max = Math.max(1, ...vs.map(x => x[1].n));
+  const color = c => ({ '結構體': 'var(--c1)', '室內裝修': 'var(--c2)', '室外裝修': 'var(--c3)' }[c] || '#999');
+  return `<div class="stats">${['wait', 'doing', 'check', 'done'].map(s => `<button class="s-${s}" onclick="go({name:'list',st:'${s}'})"><b>${cnt(s)}</b><span>${ST[s]}</span></button>`).join('')}</div>
+    <button class="btn block" style="margin:0 0 12px;padding:14px;font-size:17px" onclick="tab('edit')">📷 新增缺失</button>
+    ${late.length ? `<div class="card"><h3>⚠ 逾期未改善（${late.length} 件）</h3>${late.slice(0, 5).map(itemHTML).join('')}${late.length > 5 ? `<button class="btn ghost block" onclick="go({name:'list',st:'late'})">看全部 ${late.length} 件</button>` : ''}</div>` : ''}
+    ${soon.length ? `<div class="card"><h3>⏰ 快到期（2 天內）</h3>${soon.slice(0, 5).map(itemHTML).join('')}</div>` : ''}
+    <div class="card"><h3>各廠商未結案</h3>${vs.length ? vs.map(([vid, x]) => {
+      const v = vendorOf(vid);
+      return `<div class="bar" onclick="${vid ? `go({name:'vendor',id:'${vid}'})` : `go({name:'list',vid:''})`}"><span class="n">${esc(v ? v.name : '未指定廠商')}</span><span class="b"><i style="width:${x.n / max * 100}%;background:${color(v && v.cat)}"></i></span><span class="c">${x.n} 件${x.late ? `<br><span class="red">逾期 ${x.late}</span>` : ''}</span></div>`;
+    }).join('') : '<div class="muted">目前沒有未結案的缺失 👍</div>'}
+    <div style="margin-top:8px">${CATS.map(catTag).join('')}</div></div>`;
+};
+function itemHTML(d) {
+  return `<div class="item ${isLate(d) ? 'late' : ''}" id="it-${d.id}" onclick="go({name:'detail',id:'${d.id}'})">
+    <div class="thumb">${d.photos && d.photos[0] ? imgTag(d.photos[0]) : '📝'}</div>
+    <div class="grow"><div class="it-t">${noText(d)}　${esc(locText(d))}</div>
+    <div class="it-m">${catTag(d.cat)}${stTag(d)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}${esc(d.trade)}</div>
+    <div class="it-m" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.note)}</div>
+    <div class="it-m">${esc(vName(d.vid))}　${dueText(d)}</div></div></div>`;
+}
+
+// ── 新增／修改缺失 ─────────────────────────
+let draft = null, draftDirty = false;
+function startDraft(id) {
+  draftDirty = false;
+  if (id) { draft = clone(state.defects[id]); draft._orig = clone(draft.photos); return; }
+  // 新單：先看有沒有沒存完的（相機開啟時手機可能會重新載入網頁）
+  try { const s = JSON.parse(localStorage.getItem('dfi_draft') || 'null'); if (s && curP() && s.pid === curP().id) { draft = s; return; } } catch (e) {}
+  const last = JSON.parse(localStorage.getItem('dfi_last') || '{}');
+  draft = { id: uid(), pid: curP() ? curP().id : '', cat: last.cat || '結構體', trade: '', vid: '', bldg: last.bldg || '', floor: last.floor || '', spot: '',
+    note: '', req: '', photos: [], due: addDays(7), dueN: 7, status: 'wait', reviews: [], _orig: [] };
+}
+function keepDraft() { draftDirty = true; if (!view.id) localStorage.setItem('dfi_draft', JSON.stringify(draft)); }
+function vendorsFor(cat) { return state.vendors.filter(v => !v.disabled && v.cat === cat); }
+VIEWS.edit = () => {
+  const p = curP();
+  hdr(view.id ? '修改缺失 ' + noText(draft) : '新增缺失', { right: view.id ? null : ['清空', () => { if (confirm('清空重填？')) { localStorage.removeItem('dfi_draft'); startDraft(null); render(); } }] });
+  if (!p) return `<div class="card">請先在總覽新增／選擇建案。</div>`;
+  if (!draft) startDraft(view.id || null);
+  const d = draft;
+  photoLists.draft = { get: () => d.photos, editable: true, changed: () => { keepDraft(); render(); } };
+  photoTargets.draft = id => { d.photos.push(id); keepDraft(); render(); };
+  const trades = Object.keys(TRADES[d.cat] || {});
+  const vs = vendorsFor(d.cat);
+  const phrases = (TRADES[d.cat] || {})[d.trade] || [];
+  const used = f => [...new Set(Object.values(state.defects).filter(x => x.pid === p.id).map(x => x[f]).filter(Boolean))];
+  const dueN = [3, 7, 14].includes(d.dueN) ? d.dueN : 0;
+  return `<div class="card">
+    <label class="f" style="margin-top:0">缺失照片（點照片可以畫圈標示）</label>
+    <div class="photos">${photoRow(d.photos, 'draft', true)}${d.photos.length < 12 ? photoAdders('draft') : ''}</div>
+    <label class="f">位置</label>
+    <div class="row"><input type="text" style="flex:1" placeholder="棟" list="dlB" value="${esc(d.bldg)}" oninput="draft.bldg=this.value;keepDraft()">
+      <input type="text" style="flex:1" placeholder="樓層" list="dlF" value="${esc(d.floor)}" oninput="draft.floor=this.value;keepDraft()">
+      <input type="text" style="flex:1.6" placeholder="位置（如 C3 柱）" value="${esc(d.spot)}" oninput="draft.spot=this.value;keepDraft()"></div>
+    <datalist id="dlB">${used('bldg').map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <datalist id="dlF">${used('floor').map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <label class="f">大分類</label>
+    <div class="chips">${CATS.map(c => `<button class="chip ${d.cat === c ? 'on' : ''}" onclick="setCat('${c}')">${c}</button>`).join('')}</div>
+    <label class="f">工項</label>
+    <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}</button>`).join('')}</div>
+    <label class="f">負責廠商${d.trade ? '（依工項自動帶出，可改）' : ''}</label>
+    <div class="row"><select class="grow" onchange="if(this.value==='+'){newVendor(draft.cat,draft.trade)}else{draft.vid=this.value;keepDraft()}">
+      <option value="">— 選廠商 —</option>
+      ${vs.map(v => `<option value="${v.id}" ${d.vid === v.id ? 'selected' : ''}>${esc(v.name)}${v.trades.length ? '（' + esc(v.trades.join('、')) + '）' : ''}</option>`).join('')}
+      ${d.vid && !vs.some(v => v.id === d.vid) ? `<option value="${d.vid}" selected>${esc(vName(d.vid))}</option>` : ''}
+      <option value="+">＋ 新增廠商…</option></select></div>
+    <label class="f">缺失說明${phrases.length ? '（點常用語快速帶入）' : ''}</label>
+    ${phrases.length ? `<div class="chips" style="margin-bottom:6px">${phrases.map(t => `<button class="chip" onclick="addPhrase(${jsq(t)})">${esc(t)}</button>`).join('')}</div>` : ''}
+    <textarea id="noteT" placeholder="例如：樑底蜂窩約 30×20cm" oninput="draft.note=this.value;keepDraft()">${esc(d.note)}</textarea>
+    <label class="f">改善要求（可不填）</label>
+    <textarea placeholder="例如：打除鬆散部分後以無收縮水泥砂漿修補" oninput="draft.req=this.value;keepDraft()">${esc(d.req)}</textarea>
+    <label class="f">改善期限</label>
+    <div class="chips">${[3, 7, 14].map(n => `<button class="chip ${dueN === n ? 'on' : ''}" onclick="setDue(${n})">${n} 天</button>`).join('')}
+      <input type="date" style="width:auto;padding:5px 8px;font-size:15px" value="${esc(d.due)}" onchange="draft.due=this.value;draft.dueN=0;keepDraft();render()"></div>
+    <div class="muted" style="margin-top:4px">到 ${md(d.due)}（${['日', '一', '二', '三', '四', '五', '六'][new Date(d.due + 'T00:00').getDay()]}）</div>
+  </div>
+  ${view.id ? `<button class="btn block" onclick="saveDraft(false)">儲存修改</button>`
+    : `<button class="btn block" onclick="saveDraft(false)">儲存缺失</button>
+       <button class="btn line block" onclick="saveDraft(true)">儲存並傳 LINE 給廠商</button>`}`;
+};
+function setCat(c) {
+  if (draft.cat === c) return;
+  draft.cat = c; draft.trade = '';
+  if (draft.vid && !vendorsFor(c).some(v => v.id === draft.vid)) draft.vid = '';
+  keepDraft(); render();
+}
+function setTrade(t) {
+  draft.trade = draft.trade === t ? '' : t;
+  // 自動帶廠商：工項對得上的廠商；這個分類只有一家也帶
+  const vs = vendorsFor(draft.cat), cur = vs.find(v => v.id === draft.vid);
+  if (draft.trade && !(cur && cur.trades.includes(draft.trade))) {
+    const hit = vs.filter(v => v.trades.includes(draft.trade));
+    if (hit.length) draft.vid = hit[0].id;
+    else if (!cur && vs.length === 1) draft.vid = vs[0].id;
+  }
+  keepDraft(); render();
+}
+function addPhrase(t) {
+  const el = $('noteT');
+  draft.note = (draft.note ? draft.note.replace(/[，、\s]*$/, '') + '、' : '') + t;
+  keepDraft();
+  if (el) { el.value = draft.note; el.focus(); }
+}
+function setDue(n) { draft.due = addDays(n); draft.dueN = n; keepDraft(); render(); }
+async function saveDraft(withLine) {
+  const d = draft;
+  d.note = d.note.trim();
+  if (!d.photos.length && !d.note) { toast('請拍照或寫缺失說明'); return; }
+  if (!d.due) { toast('請選改善期限'); return; }
+  if (withLine && !d.vid) { toast('請先選廠商'); return; }
+  const isNew = !view.id;
+  const newPh = d.photos.filter(id => !(d._orig || []).includes(id));
+  const out = clone(d); delete out._orig; delete out.dueN;
+  if (isNew) { out.v = 0; out.by = auth.me.name; out.byUser = auth.me.user; out.created = ''; }
+  else { const old = state.defects[d.id]; if (!old) { toast('這筆缺失已被刪除'); return; } SERVER_KEYS.forEach(k => { out[k] = old[k]; }); out.v = old.v; out.reviews = old.reviews; out.status = old.status; }
+  saveD(out, newPh);
+  if (isNew) {
+    localStorage.removeItem('dfi_draft');
+    localStorage.setItem('dfi_last', JSON.stringify({ cat: d.cat, bldg: d.bldg, floor: d.floor }));
+  }
+  draftDirty = false; draft = null;
+  if (isNew) { stack.length = 0; view = { name: 'home' }; stack.push(view); }
+  else stack.pop();
+  view = { name: 'detail', id: out.id };
+  render();
+  toast(isNew ? '已存檔' : '已修改');
+  if (withLine) {
+    // 先上傳，廠商點連結才看得到；上傳完跳出按鈕（手機瀏覽器要「按一下」才能開 LINE）
+    sheet('<div class="empty">上傳中…</div>');
+    for (let i = 0; i < 20 && isPending(out.id); i++) { await sync(); if (isPending(out.id)) await new Promise(r => setTimeout(r, 700)); if (syncErr) break; }
+    if (isPending(out.id)) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，在這頁按「傳 LINE 給廠商」'); return; }
+    sheet(`<h3>已上傳 ${noText(state.defects[out.id])}</h3><button class="btn line block" onclick="closeLayer();sendLine('${out.id}')">開啟 LINE 傳給 ${esc(vName(out.vid))}</button>
+      <button class="btn ghost block" onclick="closeLayer()">先不要</button>`);
+  }
+}
+// 在填缺失時新增廠商
+function newVendor(cat, trade) { editVendor(null, cat, trade); }
+
+// ── 缺失清單 ─────────────────────────────
+const LF = { cat: '', st: 'open', vid: null, q: '' };
+VIEWS.list = () => {
+  const p = curP();
+  hdr(p ? p.name + ' ▾' : '缺失清單', { pick: true });
+  if (view.st) { LF.st = view.st; delete view.st; }
+  if (view.vid !== undefined) { LF.vid = view.vid; delete view.vid; }
+  let ds = projDefects();
+  if (LF.cat) ds = ds.filter(d => d.cat === LF.cat);
+  if (LF.vid !== null) ds = ds.filter(d => (d.vid || '') === LF.vid);
+  ds = ds.filter({ open: d => OPEN(d.status), late: isLate, all: () => true }[LF.st] || (d => d.status === LF.st));
+  if (LF.q) { const q = LF.q.toLowerCase(); ds = ds.filter(d => [noText(d), locText(d), d.note, d.req, d.trade, vName(d.vid)].join(' ').toLowerCase().includes(q)); }
+  ds.sort((a, b) => LF.st === 'done' ? String(b.at || '').localeCompare(String(a.at || '')) : (isLate(b) - isLate(a)) || a.due.localeCompare(b.due) || (a.no || 1e9) - (b.no || 1e9));
+  const stOpts = [['open', '未結案'], ['late', '逾期'], ['wait', '待改善'], ['doing', '改善中'], ['check', '待複查'], ['done', '已結案'], ['all', '全部']];
+  const vs = [...new Set(projDefects().map(d => d.vid || ''))];
+  return `<div class="chips" style="margin-bottom:8px"><button class="chip ${!LF.cat ? 'on' : ''}" onclick="LF.cat='';render()">全部</button>${CATS.map(c => `<button class="chip ${LF.cat === c ? 'on' : ''}" onclick="LF.cat='${c}';render()">${c}</button>`).join('')}</div>
+    <div class="chips" style="margin-bottom:8px">${stOpts.map(([k, n]) => `<button class="chip ${LF.st === k ? 'on' : ''}" onclick="LF.st='${k}';render()">${n}</button>`).join('')}</div>
+    <div class="row" style="margin-bottom:10px"><select style="flex:1" onchange="LF.vid=this.value==='*'?null:this.value;render()">
+      <option value="*">全部廠商</option>${vs.map(id => `<option value="${id}" ${LF.vid === id ? 'selected' : ''}>${esc(vName(id))}</option>`).join('')}</select>
+      <input type="search" style="flex:1" placeholder="🔍 搜尋" value="${esc(LF.q)}" onchange="LF.q=this.value;render()"></div>
+    <div class="muted" style="margin-bottom:6px">共 ${ds.length} 件</div>
+    ${ds.length ? ds.map(itemHTML).join('') : '<div class="empty">沒有符合的缺失</div>'}`;
+};
+
+// ── 複查 ─────────────────────────────
+VIEWS.review = () => {
+  const p = curP();
+  hdr(p ? p.name + ' ▾' : '複查', { pick: true });
+  const ds = projDefects().filter(d => d.status === 'check').sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+  return `<div class="muted" style="margin-bottom:8px">廠商回報改善完成、等你去現場看的缺失。廠商沒回報的，也可以在缺失詳細頁直接複查。</div>
+    ${ds.length ? ds.map(itemHTML).join('') : '<div class="empty">目前沒有待複查的缺失 👍</div>'}`;
+};
+
+// ── 缺失詳細 ─────────────────────────────
+let rv = null;   // 複查暫存
+VIEWS.detail = () => {
+  const d = state.defects[view.id];
+  if (!d) { hdr('缺失'); return '<div class="empty">找不到這筆缺失（可能已被刪除）</div>'; }
+  hdr('缺失 ' + noText(d));
+  const v = vendorOf(d.vid), done = d.status === 'done';
+  const canEdit = !done || isAdmin();
+  const canDel = isAdmin() || (d.byUser === auth.me.user && d.status === 'wait' && !(d.fixes || []).length && !(d.reviews || []).length);
+  photoLists['d-' + d.id] = { get: () => d.photos, editable: false };
+  if (!rv || rv.id !== d.id) rv = { id: d.id, ok: null, note: '', photos: [], due: addDays(7), dueN: 7 };
+  photoLists.rv = { get: () => rv.photos, editable: true, changed: render };
+  photoTargets.rv = id => { rv.photos.push(id); render(); };
+  const subs = [];
+  (d.fixes || []).forEach((f, i) => subs.push({ k: 'fix', i, html: `<div class="sub fix"><b>廠商回報改善完成</b>　<span class="muted">${esc(f.at)}</span>${f.note ? `<div>${esc(f.note)}</div>` : ''}<div class="photos">${f.photos.map(phView).join('')}</div></div>` }));
+  (d.reviews || []).forEach((r, i) => subs.push({ k: 'rv', i, html: `<div class="sub ${r.ok ? 'ok' : 'ng'}"><b>${r.ok ? '複查合格 ✔' : '複查不合格，退回'}</b>　<span class="muted">${esc(r.by || '')} ${esc(r.at || '（未上傳）')}</span>${!r.ok && r.due ? `<div>新期限：${md(r.due)}</div>` : ''}${r.note ? `<div>${esc(r.note)}</div>` : ''}<div class="photos">${(r.photos || []).map(phView).join('')}</div></div>` }));
+  // 依處理紀錄的先後排（時間只到分鐘，同一分鐘會排錯）
+  const order = { fix: [], rv: [] };
+  (d.log || []).forEach((l, i) => { if (l.msg === '廠商回報改善完成') order.fix.push(i); else if (l.msg.startsWith('複查')) order.rv.push(i); });
+  subs.forEach(s => { const o = order[s.k][s.i]; s.at = o === undefined ? 1e9 + s.i : o; });
+  subs.sort((a, b) => a.at - b.at);
+  return `<div class="card">
+    <div class="row wrap" style="margin-bottom:6px">${stTag(d)}${catTag(d.cat)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}</div>
+    <div class="photos">${photoRow(d.photos, 'd-' + d.id, false)}</div>
+    <table class="kv" style="margin-top:8px">
+      <tr><th>位置</th><td>${esc(locText(d)) || '—'}</td></tr>
+      <tr><th>工項</th><td>${esc(d.cat)}${d.trade ? '／' + esc(d.trade) : ''}</td></tr>
+      <tr><th>廠商</th><td>${v ? `<a href="javascript:go({name:'vendor',id:'${v.id}'})">${esc(v.name)}</a>${v.phone ? `　<a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a>` : ''}` : '（未指定）'}</td></tr>
+      <tr><th>缺失說明</th><td style="white-space:pre-wrap">${esc(d.note) || '—'}</td></tr>
+      ${d.req ? `<tr><th>改善要求</th><td style="white-space:pre-wrap">${esc(d.req)}</td></tr>` : ''}
+      <tr><th>改善期限</th><td>${dueText(d, true)}</td></tr>
+      <tr><th>開單</th><td>${esc(d.by || '')} ${esc(d.created || '')}</td></tr>
+    </table></div>
+  ${subs.map(s => s.html).join('')}
+  <div class="card">
+    ${d.vid ? `<button class="btn line block" onclick="sendLine('${d.id}')">傳 LINE 給廠商</button>` : ''}
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost grow" onclick="go({name:'notice',ids:['${d.id}']})">🖨 通知單</button>
+      ${d.vid ? `<button class="btn ghost grow" onclick="copyMsg('${d.id}')">📋 複製訊息</button>` : ''}
+      ${canEdit ? `<button class="btn ghost grow" onclick="startDraft('${d.id}');go({name:'edit',id:'${d.id}'})">✏️ 修改</button>` : ''}
+    </div></div>
+  ${!done ? `<div class="card"><h3>複查</h3>
+    <div class="chips"><button class="chip ${rv.ok === true ? 'on' : ''}" onclick="rv.ok=true;render()">✔ 合格，結案</button><button class="chip ${rv.ok === false ? 'on' : ''}" onclick="rv.ok=false;render()">✘ 不合格，退回重做</button></div>
+    ${rv.ok === null ? '' : `
+    ${rv.ok === false ? `<label class="f">新的改善期限</label><div class="chips">${[3, 7, 14].map(n => `<button class="chip ${rv.dueN === n ? 'on' : ''}" onclick="rv.due=addDays(${n});rv.dueN=${n};render()">${n} 天</button>`).join('')}<input type="date" style="width:auto;padding:5px 8px;font-size:15px" value="${rv.due}" onchange="rv.due=this.value;rv.dueN=0;render()"></div>` : ''}
+    <label class="f">${rv.ok ? '備註（可不填）' : '不合格的原因'}</label><textarea oninput="rv.note=this.value">${esc(rv.note)}</textarea>
+    <label class="f">複查照片（可不拍）</label><div class="photos">${photoRow(rv.photos, 'rv', true)}${rv.photos.length < 12 ? photoAdders('rv') : ''}</div>
+    <button class="btn ${rv.ok ? 'ok' : 'ng'} block" onclick="submitReview()">${rv.ok ? '確認合格結案' : '確認退回'}</button>`}
+  </div>` : ''}
+  ${done && isAdmin() ? `<button class="btn ghost block" onclick="reopen('${d.id}')">重新開啟（後台）</button>` : ''}
+  <div class="card"><h3>處理紀錄</h3><div class="log">${(d.log || []).map(l => `<div><span>${esc(l.at)}</span>${esc(l.msg)}${l.who ? `（${esc(l.who)}）` : ''}</div>`).join('') || '<span>還沒上傳</span>'}</div></div>
+  ${canDel ? `<button class="btn ghost block" style="color:var(--wait)" onclick="delDefect('${d.id}')">刪除這筆缺失</button>` : ''}`;
+};
+function submitReview() {
+  const d = clone(state.defects[rv.id]);
+  if (!rv.ok && !rv.note.trim()) { toast('請寫不合格的原因'); return; }
+  d.reviews = (d.reviews || []).concat([{ ok: rv.ok, note: rv.note.trim(), photos: rv.photos.slice(), due: rv.ok ? '' : rv.due }]);
+  d.status = rv.ok ? 'done' : 'wait';
+  if (!rv.ok) d.due = rv.due;
+  saveD(d, rv.photos);
+  toast(rv.ok ? '已結案' : '已退回，記得通知廠商');
+  rv = null; render();
+}
+function reopen(id) {
+  if (!confirm('重新開啟這筆缺失（改回待改善）？')) return;
+  const d = clone(state.defects[id]); d.status = 'wait'; saveD(d); render();
+}
+function delDefect(id) {
+  if (!confirm('確定刪除這筆缺失？照片也會一起刪掉。')) return;
+  const d = state.defects[id];
+  delete state.defects[id];
+  if (d.v) outbox.del.push(id);
+  else outbox.ph = outbox.ph.filter(p => !d.photos.includes(p));
+  delete outbox.d[id];
+  persist(); goBack();
+}
+
+// ── LINE 通知 ─────────────────────────────
+const vendorLink = (v, id) => BASE + '?v=' + v.code + (id ? '#d=' + id : '');
+function lineMsg(d) {
+  const v = vendorOf(d.vid), p = state.projects.find(x => x.id === d.pid);
+  const back = (d.reviews || []).slice(-1)[0];
+  const n = daysBetween(today(), d.due);
+  return [`【缺失改善通知】${noText(d)}`,
+    `${p ? p.name : ''}｜${locText(d)}`,
+    `工項：${d.cat}${d.trade ? '／' + d.trade : ''}`,
+    `缺失：${d.note || '（見照片）'}`,
+    d.req ? `要求：${d.req}` : null,
+    back && !back.ok && d.status === 'wait' ? `⚠ 複查不合格：${back.note}` : null,
+    `期限：${md(d.due)}${n >= 0 ? `（${n} 天內）` : '（已逾期）'}`,
+    d.photos.length ? `📷 照片 ${d.photos.length} 張（點連結看）` : null,
+    '', '改善完成請點連結回傳照片 👇', vendorLink(v, d.id)].filter(s => s !== null).join('\n');
+}
+function checkSendable(id) {
+  const d = state.defects[id], v = d && vendorOf(d.vid);
+  if (!v) { toast('請先選廠商'); return null; }
+  if (v.disabled) { toast('這個廠商已停用'); return null; }
+  if (!d.v || isPending(id)) { toast('還沒上傳（可能沒網路），上傳後再傳給廠商'); syncNow(); return null; }
+  return d;
+}
+function openLine(text) { window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank'); }
+function sendLine(id) { const d = checkSendable(id); if (d) openLine(lineMsg(d)); }
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('已複製，可貼到 LINE'); }
+  catch (e) { prompt('複製下面的文字：', t); }
+}
+function copyMsg(id) { const d = checkSendable(id); if (d) copyText(lineMsg(d)); }
+
+// ── 通知單（列印／存 PDF）─────────────────────
+VIEWS.notice = () => {
+  hdr('缺失改善通知單');
+  const ds = (view.ids || []).map(id => state.defects[id]).filter(Boolean);
+  return `<div class="noprint row" style="margin-bottom:12px"><button class="btn grow" onclick="print()">🖨 列印／存 PDF</button><button class="btn ghost" onclick="goBack()">返回</button></div>
+    ${ds.map(noticeHTML).join('') || '<div class="empty">沒有缺失</div>'}`;
+};
+function noticeHTML(d) {
+  const v = vendorOf(d.vid), p = state.projects.find(x => x.id === d.pid), fix = (d.fixes || []).slice(-1)[0];
+  const back = (d.reviews || []).filter(r => !r.ok).slice(-1)[0];
+  const roc = s => s ? (Number(s.slice(0, 4)) - 1911) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10) : '';
+  const lastRv = (d.reviews || []).slice(-1)[0];
+  return `<div class="notice"><h2>缺失改善通知單</h2>
+    <div class="no">${esc(p ? p.name : '')}　　編號：${noText(d).replace('#', 'No. ')}</div>
+    <table>
+      <tr><th>受通知廠商</th><td>${esc(v ? v.name : '')}${v && v.trades.length ? '（' + esc(v.trades.join('、')) + '）' : ''}</td><th>發單日期</th><td>${roc((d.created || today()).slice(0, 10))}</td></tr>
+      <tr><th>缺失分類</th><td>${esc(d.cat)}${d.trade ? '／' + esc(d.trade) : ''}</td><th>改善期限</th><td><b>${roc(d.due)}</b></td></tr>
+      <tr><th>位置</th><td colspan="3">${esc(locText(d))}</td></tr>
+      <tr><th>缺失說明</th><td colspan="3" style="white-space:pre-wrap">${esc(d.note)}</td></tr>
+      <tr><th>改善要求</th><td colspan="3" style="white-space:pre-wrap">${esc(d.req || '請依規範改善，完成後拍照回報，經工地複查合格始得結案。')}</td></tr>
+      ${back ? `<tr><th>複查不合格</th><td colspan="3">${esc(back.note)}（${esc((back.at || '').slice(0, 10))}）</td></tr>` : ''}
+      <tr><th>缺失照片</th><td colspan="3"><div class="pics">${d.photos.map(imgTag).join('') || '—'}</div></td></tr>
+      <tr><th>改善後照片</th><td colspan="3">${fix ? `<div class="pics">${fix.photos.map(imgTag).join('')}</div>${fix.note ? `<div>${esc(fix.note)}</div>` : ''}` : '<div style="height:60px"></div>'}</td></tr>
+    </table>
+    <table class="sign" style="margin-top:10px"><tr><th>開單人</th><th>廠商簽收</th><th>複查人</th><th>結案日期</th></tr>
+      <tr><td>${esc(d.by || '')}</td><td></td><td>${lastRv && lastRv.ok ? esc(lastRv.by || '') : ''}</td><td>${d.status === 'done' && lastRv ? roc((lastRv.at || '').slice(0, 10)) : ''}</td></tr></table>
+    <div class="foot">※ 逾期未改善者，依合約規定辦理。　※ 本單一式兩聯，一聯廠商留存。</div></div>`;
+}
+
+// ── 廠商 ─────────────────────────────
+VIEWS.vendors = () => {
+  hdr('廠商', { right: ['＋ 新增', () => editVendor(null)] });
+  const ds = projDefects();
+  const list = state.vendors.filter(v => !v.disabled || isAdmin());
+  return CATS.map(c => {
+    const vs = list.filter(v => v.cat === c);
+    return `<div class="card"><h3>${catTag(c)}</h3>${vs.length ? vs.map(v => {
+      const open = ds.filter(d => d.vid === v.id && OPEN(d.status)), late = open.filter(isLate).length;
+      return `<div class="user-row" onclick="go({name:'vendor',id:'${v.id}'})"><div class="grow"><b>${esc(v.name)}</b>${v.disabled ? ' <span class="tag pend">停用</span>' : ''}
+        <div class="muted">${esc(v.trades.join('、') || '—')}</div></div><div style="text-align:right;font-size:14px">${open.length ? `未結案 ${open.length}` : '<span class="muted">無</span>'}${late ? `<br><span class="red">逾期 ${late}</span>` : ''}</div></div>`;
+    }).join('') : '<div class="muted">還沒有廠商</div>'}</div>`;
+  }).join('') + `<button class="btn block" onclick="editVendor(null)">＋ 新增廠商</button>`;
+};
+VIEWS.vendor = () => {
+  const v = vendorOf(view.id);
+  if (!v) { hdr('廠商'); return '<div class="empty">找不到廠商</div>'; }
+  hdr(v.name, { right: ['修改', () => editVendor(v.id)] });
+  const ds = projDefects().filter(d => d.vid === v.id);
+  const open = ds.filter(d => OPEN(d.status)).sort((a, b) => (isLate(b) - isLate(a)) || a.due.localeCompare(b.due));
+  const p = curP();
+  return `<div class="card"><table class="kv">
+      <tr><th>分類</th><td>${catTag(v.cat)}${v.disabled ? '<span class="tag pend">停用</span>' : ''}</td></tr>
+      <tr><th>工項</th><td>${esc(v.trades.join('、') || '—')}</td></tr>
+      ${v.contact ? `<tr><th>聯絡人</th><td>${esc(v.contact)}</td></tr>` : ''}
+      ${v.phone ? `<tr><th>電話</th><td><a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a></td></tr>` : ''}</table></div>
+    <div class="card"><h3>廠商專屬回報連結</h3>
+      <div class="muted">廠商點開不用登入，就能看到自己所有的缺失、回傳改善照片。連結不要傳給別人。</div>
+      ${v.code ? `<button class="btn line block" onclick="sendVendorList('${v.id}')">傳 LINE：未結案清單＋連結</button>
+      <button class="btn ghost block" onclick="copyText(vendorLink(vendorOf('${v.id}')))">📋 複製連結</button>` : '<div class="muted">上傳後才有連結</div>'}
+      ${isAdmin() && v.code ? `<button class="btn ghost block" onclick="resetCode('${v.id}')">換新連結（舊的會失效）</button>` : ''}</div>
+    <div class="card"><h3>${esc(p ? p.name : '')}：未結案 ${open.length} 件</h3>
+      ${open.length ? `<button class="btn ghost block" style="margin-bottom:10px" onclick="go({name:'notice',ids:${esc(JSON.stringify(open.map(d => d.id)))}})">🖨 列印全部通知單</button>` : ''}
+      ${open.map(itemHTML).join('') || '<div class="muted">沒有未結案的缺失</div>'}
+      ${ds.length > open.length ? `<button class="btn ghost block" onclick="go({name:'list',vid:'${v.id}',st:'done'})">看已結案（${ds.length - open.length} 件）</button>` : ''}</div>`;
+};
+function sendVendorList(vid) {
+  const v = vendorOf(vid), p = curP();
+  const open = projDefects().filter(d => d.vid === vid && OPEN(d.status) && d.status !== 'check').sort((a, b) => a.due.localeCompare(b.due));
+  const lines = open.map(d => `${noText(d)} ${locText(d)}｜${d.note.split('\n')[0].slice(0, 20)}｜期限 ${md(d.due)}${isLate(d) ? '（已逾期）' : ''}`);
+  openLine([`【${v.name} 缺失改善清單】`, `${p ? p.name : ''}　待改善 ${open.length} 件`, ...lines, '', '改善完成請點連結回傳照片 👇', vendorLink(v)].join('\n'));
+}
+let vEdit = null;
+function editVendor(id, cat, trade) {
+  const v = id ? vendorOf(id) : null;
+  vEdit = v ? clone(v) : { id: uid(), name: '', cat: cat || '結構體', trades: trade ? [trade] : [], contact: '', phone: '', disabled: false, _new: true, _fromDraft: !!cat };
+  drawVendorSheet();
+}
+function drawVendorSheet() {
+  const v = vEdit, all = [...new Set(Object.keys(TRADES[v.cat]).concat(v.trades))];
+  sheet(`<h3>${v._new ? '新增廠商' : '修改廠商'}</h3>
+    <label class="f">廠商名稱</label><input type="text" id="vn" value="${esc(v.name)}" oninput="vEdit.name=this.value">
+    <label class="f">分類</label><div class="chips">${CATS.map(c => `<button class="chip ${v.cat === c ? 'on' : ''}" onclick="vEdit.cat='${c}';drawVendorSheet()">${c}</button>`).join('')}</div>
+    <label class="f">負責工項（可複選）</label><div class="chips">${all.map(t => `<button class="chip ${v.trades.includes(t) ? 'on' : ''}" onclick="togTrade(${jsq(t)})">${esc(t)}</button>`).join('')}
+      <button class="chip add" onclick="const t=prompt('其他工項名稱');if(t&&t.trim()){vEdit.trades.push(t.trim().slice(0,20));drawVendorSheet()}">＋ 其他</button></div>
+    <label class="f">聯絡人</label><input type="text" value="${esc(v.contact)}" oninput="vEdit.contact=this.value">
+    <label class="f">電話</label><input type="tel" value="${esc(v.phone)}" oninput="vEdit.phone=this.value">
+    ${!v._new && isAdmin() ? `<label style="display:block;margin-top:12px"><input type="checkbox" ${v.disabled ? 'checked' : ''} onchange="vEdit.disabled=this.checked"> 停用（連結失效、不再出現在選單）</label>` : ''}
+    <button class="btn block" id="vSave" onclick="saveVendor()">儲存</button>
+    <button class="btn ghost block" onclick="closeLayer();if(view.name==='edit')render()">取消</button>`);
+}
+function togTrade(t) { const a = vEdit.trades, i = a.indexOf(t); if (i < 0) a.push(t); else a.splice(i, 1); drawVendorSheet(); }
+async function saveVendor(resetCode) {
+  const v = vEdit;
+  if (!v.name.trim()) { toast('請填廠商名稱'); return; }
+  const b = $('vSave'); if (b) b.disabled = true;
+  try {
+    const r = await api('saveVendor', { vendor: { id: v.id, name: v.name.trim(), cat: v.cat, trades: v.trades, contact: v.contact, phone: v.phone, disabled: v.disabled }, resetCode: !!resetCode });
+    const i = state.vendors.findIndex(x => x.id === v.id);
+    if (i >= 0) state.vendors[i] = r.vendor; else state.vendors.push(r.vendor);
+    persistNow(); closeLayer();
+    if (v._fromDraft && draft) { draft.cat = v.cat; draft.vid = v.id; keepDraft(); }
+    toast(resetCode ? '已換新連結，記得把新連結傳給廠商' : '廠商已存');
+    render();
+  } catch (e) { toast(e.message.includes('網路') ? '新增廠商要有網路' : e.message); if (b) b.disabled = false; }
+}
+function resetCode(id) {
+  if (!confirm('換新連結後，舊連結就不能用了。確定？')) return;
+  vEdit = clone(vendorOf(id)); saveVendor(true);
+}
+
+// ── 設定、建案、帳號 ─────────────────────────
+VIEWS.settings = () => {
+  hdr('設定');
+  return `<div class="card"><h3>${esc(auth.me.name)}</h3><div class="muted">帳號 ${esc(auth.me.user)}・${ROLE_NAME[auth.me.role]}</div>
+      <button class="btn ghost block" onclick="changePass()">改密碼</button>
+      <button class="btn ghost block" onclick="logout()">登出</button></div>
+    ${isAdmin() ? `<div class="card"><h3>後台管理</h3>
+      <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
+      <button class="btn ghost block" onclick="go({name:'users'})">👤 帳號管理</button></div>` : ''}
+    <div class="card"><h3>資料</h3><div class="muted">還沒上傳：${pendingCount()} 筆　${syncErr ? '（' + esc(syncErr) + '）' : ''}</div>
+      <button class="btn ghost block" onclick="syncNow().then(()=>pull())">立即同步</button></div>
+    <div class="ver">小棒槌 缺失改善系統 ${VERSION}${LOCAL ? '<br>後端：' + esc(API) : ''}</div>`;
+};
+function changePass() {
+  sheet(`<h3>改密碼</h3><label class="f">舊密碼</label><input type="password" id="po"><label class="f">新密碼（至少 6 個字）</label><input type="password" id="pn">
+    <button class="btn block" onclick="doChangePass(this)">確定</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function doChangePass(b) {
+  b.disabled = true;
+  try { setAuth(await api('changePass', { old: $('po').value, pass: $('pn').value })); closeLayer(); toast('密碼已更改'); }
+  catch (e) { toast(e.message); b.disabled = false; }
+}
+VIEWS.projects = () => {
+  hdr('建案管理', { right: ['＋ 新增', () => editProject(null)] });
+  return `<div class="card">${state.projects.map(p => `<div class="user-row" onclick="editProject('${p.id}')"><b class="grow">${esc(p.name)}</b>${p.disabled ? '<span class="tag pend">停用</span>' : ''}<span class="muted">${Object.values(state.defects).filter(d => d.pid === p.id).length} 件</span></div>`).join('') || '<div class="muted">還沒有建案</div>'}</div>
+    <button class="btn block" onclick="editProject(null)">＋ 新增建案</button>`;
+};
+function editProject(id) {
+  const p = id ? state.projects.find(x => x.id === id) : null;
+  sheet(`<h3>${p ? '修改建案' : '新增建案'}</h3><label class="f">建案名稱</label><input type="text" id="pjn" value="${esc(p ? p.name : '')}">
+    ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
+    <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function saveProject(id, b) {
+  b.disabled = true;
+  const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: !!($('pjd') && $('pjd').checked) };
+  try {
+    await api('saveProject', { project: p });
+    const i = state.projects.findIndex(x => x.id === p.id);
+    if (i >= 0) state.projects[i] = p; else { state.projects.push(p); localStorage.setItem('dfi_pid', p.id); }
+    persistNow(); closeLayer(); render(); toast('已儲存');
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+let users = null;
+VIEWS.users = () => {
+  hdr('帳號管理', { right: ['＋ 新增', () => editUser(null)] });
+  if (!users) { api('listUsers').then(r => { users = r.users; render(); }).catch(e => toast(e.message)); return '<div class="empty">讀取中…</div>'; }
+  return `<div class="card">${users.map(u => `<div class="user-row" onclick="editUser(${jsq(u.user)})"><div class="grow"><b>${esc(u.name)}</b><div class="muted">${esc(u.user)}・${ROLE_NAME[u.role]}</div></div>${u.disabled ? '<span class="tag pend">停用</span>' : ''}</div>`).join('')}</div>
+    <div class="muted">工地人員：可以開單、複查、新增廠商。後台：另外可以管理建案、帳號、修改已結案的缺失。</div>`;
+};
+function editUser(user) {
+  const u = user ? users.find(x => x.user === user) : null;
+  sheet(`<h3>${u ? '修改帳號' : '新增帳號'}</h3>
+    <label class="f">帳號（英文、數字）</label><input type="text" id="uu" value="${esc(u ? u.user : '')}" ${u ? 'disabled' : ''} autocapitalize="off">
+    <label class="f">姓名</label><input type="text" id="un" value="${esc(u ? u.name : '')}">
+    <label class="f">角色</label><select id="ur"><option value="staff">工地人員</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>後台</option></select>
+    <label class="f">${u ? '重設密碼（不改就空白）' : '密碼（至少 6 個字）'}</label><input type="password" id="up" autocomplete="new-password">
+    ${u ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="ud" ${u.disabled ? 'checked' : ''}> 停用這個帳號</label>` : ''}
+    <button class="btn block" onclick="saveUser(${u ? 'false' : 'true'},this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function saveUser(isNew, b) {
+  b.disabled = true;
+  try {
+    await api('saveUser', { isNew, user: $('uu').value, name: $('un').value, role: $('ur').value, pass: $('up').value || undefined, disabled: !!($('ud') && $('ud').checked) });
+    users = null; closeLayer(); render(); toast('已儲存');
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+
+// ══ 廠商回報頁（?v=回報碼，不用登入）══════════════════
+let VP = null, vpOpen = null, vpForm = null;
+async function loadVendorPortal() {
+  try { VP = await api('vendorList', { code: VCODE }); }
+  catch (e) { VP = { err: e.message }; }
+  render();
+  const m = /#d=([a-z0-9]+)/.exec(location.hash);
+  if (m && !vpOpen) {
+    const el = $('vd-' + m[1]);
+    if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('hl'); }
+  }
+}
+function renderVendorPortal() {
+  $('backBtn').style.display = 'none';
+  $('nav').style.display = 'none';
+  $('title').textContent = VP && VP.vendor ? VP.vendor.name + '｜缺失改善' : '缺失改善回報';
+  const A = $('app');
+  if (!VP) { A.innerHTML = '<div class="empty">讀取中…</div>'; return; }
+  if (VP.err) { A.innerHTML = `<div class="card login"><h3>打不開</h3><p>${esc(VP.err)}</p><button class="btn block" onclick="VP=null;render();loadVendorPortal()">再試一次</button></div>`; return; }
+  const ds = VP.defects, open = ds.filter(d => d.status === 'wait' || d.status === 'doing').sort((a, b) => a.due.localeCompare(b.due));
+  const chk = ds.filter(d => d.status === 'check'), done = ds.filter(d => d.status === 'done');
+  A.innerHTML = `<div class="card"><b>${esc(VP.vendor.name)}</b> 您好：<br><span class="muted">以下是工地巡檢發現、需要貴公司改善的缺失。改善完成後請按「回報改善完成」並拍照上傳，工地複查合格就會結案。</span></div>
+    <h3 style="color:var(--steel);margin:16px 4px 8px">待改善（${open.length}）</h3>${open.map(vpCard).join('') || '<div class="empty">目前沒有待改善的缺失 👍</div>'}
+    ${chk.length ? `<h3 style="color:var(--steel);margin:16px 4px 8px">已回報，等工地複查（${chk.length}）</h3>${chk.map(vpCard).join('')}` : ''}
+    ${done.length ? `<h3 style="color:var(--steel);margin:16px 4px 8px">最近結案（${done.length}）</h3>${done.map(vpCard).join('')}` : ''}
+    <div class="ver">小棒槌 缺失改善系統</div>`;
+  hydratePhotos(A);
+}
+function vpCard(d) {
+  const back = (d.reviews || []).slice(-1)[0], fix = (d.fixes || []).slice(-1)[0];
+  const can = d.status === 'wait' || d.status === 'doing';
+  photoLists['vp-' + d.id] = { get: () => d.photos, editable: false };
+  let form = '';
+  if (vpOpen === d.id) {
+    photoLists.vpf = { get: () => vpForm.photos, editable: false, changed: render };
+    photoTargets.vpf = id => { vpForm.photos.push(id); render(); };
+    form = `<div style="border-top:1px dashed var(--line);margin-top:10px;padding-top:6px">
+      <label class="f">改善後照片（至少 1 張）</label>
+      <div class="photos">${vpForm.photos.map((id, i) => `<div class="ph">${imgTag(id)}<button class="x" onclick="vpForm.photos.splice(${i},1);render()">✕</button></div>`).join('')}${vpForm.photos.length < 10 ? photoAdders('vpf') : ''}</div>
+      <label class="f">說明（可不填）</label><textarea oninput="vpForm.note=this.value" placeholder="例如：已打除修補完成">${esc(vpForm.note)}</textarea>
+      <button class="btn ok block" id="vpSend" onclick="vpSubmit('${d.id}')">送出回報</button>
+      <button class="btn ghost block" onclick="vpOpen=null;render()">取消</button></div>`;
+  }
+  return `<div class="card" id="vd-${d.id}">
+    <div class="row wrap"><b>${noText(d)}</b>${stTag(d)}${catTag(d.cat)}</div>
+    <div class="muted">${esc(d.project)}</div>
+    <table class="kv" style="margin-top:6px"><tr><th>位置</th><td>${esc(locText(d))}</td></tr>
+      <tr><th>工項</th><td>${esc(d.cat)}${d.trade ? '／' + esc(d.trade) : ''}</td></tr>
+      <tr><th>缺失</th><td style="white-space:pre-wrap">${esc(d.note) || '（見照片）'}</td></tr>
+      ${d.req ? `<tr><th>改善要求</th><td style="white-space:pre-wrap">${esc(d.req)}</td></tr>` : ''}
+      <tr><th>期限</th><td>${dueText(d, true)}</td></tr></table>
+    <div class="photos">${photoRow(d.photos, 'vp-' + d.id, false)}</div>
+    ${back && !back.ok && can ? `<div class="sub ng"><b>工地複查不合格（${esc((back.at || '').slice(0, 10))}）</b><div>${esc(back.note)}</div><div class="photos">${(back.photos || []).map(phView).join('')}</div></div>` : ''}
+    ${fix && !can ? `<div class="sub fix"><b>您的回報</b>　<span class="muted">${esc(fix.at)}</span>${fix.note ? `<div>${esc(fix.note)}</div>` : ''}<div class="photos">${fix.photos.map(phView).join('')}</div></div>` : ''}
+    ${can && vpOpen !== d.id ? `<div class="row" style="margin-top:10px">${d.status === 'wait' ? `<button class="btn ghost grow" onclick="vpAck('${d.id}',this)">收到，處理中</button>` : ''}<button class="btn ok grow" onclick="vpOpen='${d.id}';vpForm={photos:[],note:''};render()">回報改善完成</button></div>` : ''}
+    ${form}</div>`;
+}
+async function vpAck(id, b) {
+  b.disabled = true;
+  try { await api('vendorAck', { code: VCODE, id }); toast('已通知工地：處理中'); await loadVendorPortal(); }
+  catch (e) { toast(e.message); b.disabled = false; }
+}
+async function vpSubmit(id) {
+  if (!vpForm.photos.length) { toast('請至少拍一張改善後的照片'); return; }
+  const b = $('vpSend'); b.disabled = true;
+  try {
+    for (let i = 0; i < vpForm.photos.length; i++) {
+      b.textContent = `上傳照片 ${i + 1}/${vpForm.photos.length}…`;
+      const pid = vpForm.photos[i];
+      await api('vendorUpload', { code: VCODE, id, photo: pid, data: await photoGet(pid) });
+    }
+    b.textContent = '送出中…';
+    await api('vendorReport', { code: VCODE, id, note: vpForm.note.trim(), photos: vpForm.photos });
+    vpOpen = null; vpForm = null;
+    toast('已回報，等工地複查');
+    await loadVendorPortal();
+  } catch (e) { toast(e.message); b.disabled = false; b.textContent = '送出回報'; }
+}
+
+// ── 啟動 ─────────────────────────────
+(async () => {
+  if (VCODE) { render(); loadVendorPortal(); return; }
+  if (auth) {
+    const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
+    if (saved) state = saved;
+    if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
+    // 有沒存完的新缺失 → 直接回到新增畫面
+    if (localStorage.getItem('dfi_draft')) { view = { name: 'edit' }; startDraft(null); }
+    render();
+    pull(true);
+  } else render();
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+})();
+</script>
+</body>
+</html>
