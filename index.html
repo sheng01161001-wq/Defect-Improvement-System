@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v4';
+const VERSION = 'v5';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -485,9 +485,9 @@ function sheet(html) {
 }
 
 // ── 畫面切換 ─────────────────────────────
-let view = { name: 'home' };
+let view = { name: 'start' };
 const stack = [];
-const TABS = [['home', '🏠', '總覽'], ['edit', '📷', '新增缺失'], ['list', '📋', '清單'], ['review', '✅', '複查'], ['vendors', '🏢', '廠商']];
+const TABS = [['start', '🏠', '首頁'], ['home', '📊', '總覽'], ['edit', '📷', '新增缺失'], ['list', '📋', '清單'], ['review', '✅', '複查'], ['vendors', '🏢', '廠商']];
 function go(v) { stack.push(view); view = v; render(); scrollTo(0, 0); }
 let tabPrev = null;   // 從哪個分頁切過來的（分頁也能按「返回」）
 function tab(name) {
@@ -502,12 +502,12 @@ function tab(name) {
 function goBack() {
   if (view.name === 'edit' && view.id && draftDirty && !confirm('修改還沒存，確定離開？')) return;
   if (stack.length) view = stack.pop();
-  else { view = tabPrev && tabPrev.name !== view.name ? tabPrev : { name: 'home' }; tabPrev = null; }
+  else { view = tabPrev && tabPrev.name !== view.name ? tabPrev : { name: 'start' }; tabPrev = null; }
   if (view.name === 'edit' && !view.id) startDraft(null);
   render();
 }
 // 還能不能往回（畫面上的「返回」和手機的返回鍵共用）
-const canBack = () => !!$('layer').innerHTML || stack.length > 0 || !['home', 'login'].includes(view.name);
+const canBack = () => !!$('layer').innerHTML || stack.length > 0 || !['start', 'login'].includes(view.name);
 // 手機返回鍵／返回手勢：先關掉跳出的視窗，再回上一頁，都沒有了才離開 App
 let histArmed = false, skipPop = false;
 function armHistory() {
@@ -588,9 +588,29 @@ async function doLogin(first) {
     if (saved) state = saved;
     if (box) outbox = box;
     fixLoaded(); migrateLocalCustoms();
-    view = { name: 'home' }; render(); pull();
+    view = { name: 'start' }; render(); pull();
   } catch (e) { toast(e.message); b.disabled = false; }
 }
+
+// ── 首頁：建案列表（點一下進那個建案）──────────────
+VIEWS.start = () => {
+  hdr('缺失改善系統', { right: ['⚙', () => go({ name: 'settings' })] });
+  const ps = activeProjects();
+  if (!ps.length) return `<div class="card"><h3>還沒有建案</h3>${isAdmin()
+    ? `<p class="muted">先新增一個建案，才能開始記缺失。</p><button class="btn block" onclick="go({name:'projects'})">新增建案</button>`
+    : '<p class="muted">請後台人員先新增建案。</p><button class="btn ghost block" onclick="pull()">重新整理</button>'}</div>`;
+  const cur = curP();
+  return `<div class="muted" style="margin:0 4px 8px">點建案進去看缺失、開單</div>` + ps.map(p => {
+    const ds = Object.values(state.defects).filter(d => d.pid === p.id), n = s => ds.filter(d => d.status === s).length;
+    const late = ds.filter(isLate).length;
+    return `<div class="card" style="cursor:pointer;${cur && cur.id === p.id ? 'box-shadow:inset 4px 0 0 var(--steel),0 1px 3px rgba(0,0,0,.06)' : ''}" onclick="openProject('${p.id}')">
+      <div class="row"><b class="grow" style="font-size:18px">🏗 ${esc(p.name)}</b><span class="muted">›</span></div>
+      <div class="row wrap" style="margin-top:8px;gap:6px">
+        <span class="tag s-wait">待改善 ${n('wait') + n('doing')}</span>${late ? `<span class="tag s-wait" style="background:#a61e1e">逾期 ${late}</span>` : ''}
+        <span class="tag s-check">待複查 ${n('check')}</span><span class="tag s-done">已結案 ${n('done')}</span></div></div>`;
+  }).join('') + (isAdmin() ? `<button class="btn ghost block" onclick="go({name:'projects'})">管理建案</button>` : '');
+};
+function openProject(id) { localStorage.setItem('dfi_pid', id); tab('home'); }
 
 // ── 總覽 ─────────────────────────────
 VIEWS.home = () => {
@@ -655,6 +675,9 @@ VIEWS.edit = () => {
   const custom = d.trade && !base.includes(d.trade) && d.trade !== '其他';
   const trades = base.concat(mine, custom && !mine.includes(d.trade) ? [d.trade] : []);
   const showAll = d._allV || d._other || custom;
+  // 「其他」／自填工項：新開的單可以一次派給好幾家（全部或勾選部分）
+  const multiOK = !view.id && (custom || d._other || d.trade === '其他');
+  const multi = multiOK && d._multi;
   const vs = vendorsFor(d.cat);
   const myPh = myList('phrase', d.cat + '|' + d.trade);
   const phrases = ((TRADES[d.cat] || {})[d.trade] || []).concat(myPh.filter(t => !((TRADES[d.cat] || {})[d.trade] || []).includes(t)));
@@ -674,13 +697,14 @@ VIEWS.edit = () => {
     <label class="f">工項</label>
     <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}${mine.includes(t) && canDropMine('trade', d.cat, t) ? ` <span onclick="event.stopPropagation();dropMine('trade',${jsq(d.cat)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
       <button class="chip ${d._other || d.trade === '其他' ? 'on' : ''}" onclick="otherTrade()">其他（自填）</button></div>
-    ${d._other ? `<div class="row" style="margin-top:6px"><input type="text" id="otT" class="grow" maxlength="20" placeholder="輸入工項名稱，例如：防火披覆"><button class="btn small" onclick="setOtherTrade()">確定</button></div>` : ''}
-    <label class="f">負責廠商${d.trade ? '（依工項自動帶出，可改）' : ''}</label>
-    <div class="row"><select class="grow" onchange="pickVendor(this.value)">
+    ${d._other ? `<div class="row" style="margin-top:6px"><input type="text" id="otT" class="grow" maxlength="20" placeholder="要的話打工項名稱，例如：防火披覆（可不填）"><button class="btn small" onclick="setOtherTrade()">確定</button></div>` : ''}
+    <label class="f">負責廠商${multi ? '（可複選，每家各開一張單）' : d.trade ? '（依工項自動帶出，可改）' : ''}</label>
+    ${multiOK ? `<div class="chips" style="margin-bottom:6px"><button class="chip ${!multi ? 'on' : ''}" onclick="draft._multi=false;keepDraft();render()">派給一家</button><button class="chip ${multi ? 'on' : ''}" onclick="draft._multi=true;draft.vids=draft.vids||(draft.vid?[draft.vid]:[]);keepDraft();render()">派給多家</button></div>` : ''}
+    ${multi ? multiVendorHTML(d) : `<div class="row"><select class="grow" onchange="pickVendor(this.value)">
       <option value="">— 選廠商 —</option>
       ${showAll ? allVendorOptions(d.vid) : vs.map(v => vOpt(v, d.vid)).join('') + (d.vid && !vs.some(v => v.id === d.vid) ? `<option value="${d.vid}" selected>${esc(vName(d.vid))}</option>` : '')}
       ${showAll ? '' : '<option value="*">▼ 顯示全部廠商…</option>'}
-      <option value="+">＋ 新增廠商…</option></select></div>
+      <option value="+">＋ 新增廠商…</option></select></div>`}
     <label class="f">缺失說明（點常用語快速帶入，也可以直接打字）</label>
     <div class="chips" style="margin-bottom:6px">${phrases.map(t => `<button class="chip" onclick="addPhrase(${jsq(t)})">${esc(t)}${myPh.includes(t) && canDropMine('phrase', d.cat + '|' + d.trade, t) ? ` <span onclick="event.stopPropagation();dropMine('phrase',${jsq(d.cat + '|' + d.trade)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
       <button class="chip add" onclick="newPhrase()">＋ 新增常用語</button></div>
@@ -727,10 +751,16 @@ function migrateLocalCustoms() {
     localStorage.removeItem(key);
   });
 }
-function otherTrade() { draft._other = !draft._other; render(); if (draft._other) setTimeout(() => $('otT') && $('otT').focus(), 50); }
+// 點「其他」：工項先記成「其他」（可直接用其他的常用語、派給多家），要的話再打自己的工項名稱
+function otherTrade() {
+  if (draft.trade !== '其他' && !draft._other) { draft.trade = ''; setTrade('其他'); draft._other = true; }
+  else draft._other = !draft._other;
+  keepDraft(); render();
+  if (draft._other) setTimeout(() => $('otT') && $('otT').focus(), 50);
+}
 function setOtherTrade() {
   const t = ($('otT').value || '').trim().slice(0, 20);
-  if (!t) { toast('請輸入工項名稱'); return; }
+  if (!t || t === '其他') { draft._other = false; keepDraft(); render(); return; }
   draft._other = false;
   if (!Object.keys(TRADES[draft.cat] || {}).includes(t)) addMine('trade', draft.cat, t);
   draft.trade = '';
@@ -751,6 +781,15 @@ function allVendorOptions(cur) {
   if (cur && !pv.concat(ov).some(v => v.id === cur)) h += `<option value="${cur}" selected>${esc(vName(cur))}</option>`;
   return h;
 }
+function multiVendorHTML(d) {
+  const pv = projVendors().filter(v => !v.disabled), sel = d.vids || [];
+  if (!pv.length) return '<div class="muted">這個建案還沒有廠商，先到「廠商」新增</div>';
+  const all = pv.every(v => sel.includes(v.id));
+  return `<div class="chips" style="margin-bottom:6px"><button class="chip ${all ? 'on' : ''}" onclick="multiAll(${all ? 0 : 1})">${all ? '✔ ' : ''}全部廠商（${pv.length} 家）</button>${sel.length && !all ? `<span class="muted" style="align-self:center">已勾 ${sel.length} 家</span>` : ''}</div>
+    ${CATS.map(c => { const g = pv.filter(v => v.cat === c); return g.length ? `<div class="muted" style="margin-top:6px">${esc(c)}</div><div class="chips">${g.map(v => `<button class="chip ${sel.includes(v.id) ? 'on' : ''}" onclick="togMulti('${v.id}')">${sel.includes(v.id) ? '✔ ' : ''}${esc(v.name)}</button>`).join('')}</div>` : ''; }).join('')}`;
+}
+function togMulti(id) { const a = draft.vids = draft.vids || [], i = a.indexOf(id); if (i < 0) a.push(id); else a.splice(i, 1); keepDraft(); render(); }
+function multiAll(on) { draft.vids = on ? projVendors().filter(v => !v.disabled).map(v => v.id) : []; keepDraft(); render(); }
 function pickVendor(val) {
   if (val === '+') { newVendor(draft.cat, draft.trade); return; }
   if (val === '*') { draft._allV = true; render(); return; }
@@ -794,13 +833,18 @@ async function saveDraft(withLine) {
   d.note = d.note.trim();
   if (!d.photos.length && !d.note) { toast('請拍照或寫缺失說明'); return; }
   if (!d.due) { toast('請選改善期限'); return; }
-  if (withLine && !d.vid) { toast('請先選廠商'); return; }
   const isNew = !view.id;
+  const multi = isNew && d._multi && (d.trade === '其他' || !Object.keys(TRADES[d.cat] || {}).includes(d.trade) || d._other);
+  const vids = multi ? (d.vids || []).filter(id => vendorOf(id)) : [d.vid];
+  if (multi && !vids.length) { toast('請勾選要派的廠商'); return; }
+  if (withLine && !vids[0]) { toast('請先選廠商'); return; }
   const newPh = d.photos.filter(id => !(d._orig || []).includes(id));
-  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV;
+  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV; delete out._multi; delete out.vids;
   if (isNew) { out.v = 0; out.by = auth.me.name; out.byUser = auth.me.user; out.created = ''; }
   else { const old = state.defects[d.id]; if (!old) { toast('這筆缺失已被刪除'); return; } SERVER_KEYS.forEach(k => { out[k] = old[k]; }); out.v = old.v; out.reviews = old.reviews; out.status = old.status; }
-  saveD(out, newPh);
+  // 派給好幾家：每家各開一張單（同一組 grp、共用照片）
+  const outs = vids.map((vid, i) => Object.assign(clone(out), { id: i ? uid() : out.id, vid, grp: vids.length > 1 ? out.id : (out.grp || '') }));
+  outs.forEach(o => saveD(o, newPh));
   if (isNew) {
     localStorage.removeItem('dfi_draft');
     localStorage.setItem('dfi_last', JSON.stringify({ cat: d.cat, bldg: d.bldg, floor: d.floor }));
@@ -810,15 +854,21 @@ async function saveDraft(withLine) {
   else stack.pop();
   view = { name: 'detail', id: out.id };
   render();
-  toast(isNew ? '已存檔' : '已修改');
+  toast(isNew ? (outs.length > 1 ? `已存檔，派給 ${outs.length} 家廠商` : '已存檔') : '已修改');
   if (withLine) {
     // 先上傳，廠商點連結才看得到；上傳完跳出按鈕（手機瀏覽器要「按一下」才能開 LINE）
     sheet('<div class="empty">上傳中…</div>');
-    for (let i = 0; i < 20 && isPending(out.id); i++) { await sync(); if (isPending(out.id)) await new Promise(r => setTimeout(r, 700)); if (syncErr) break; }
-    if (isPending(out.id)) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，在這頁按「傳 LINE 給廠商」'); return; }
-    sheet(`<h3>已上傳 ${noText(state.defects[out.id])}</h3><button class="btn line block" onclick="closeLayer();sendLine('${out.id}')">開啟 LINE 傳給 ${esc(vName(out.vid))}</button>
-      <button class="btn ghost block" onclick="closeLayer()">先不要</button>`);
+    const busy = () => outs.some(o => isPending(o.id));
+    for (let i = 0; i < 20 && busy(); i++) { await sync(); if (busy()) await new Promise(r => setTimeout(r, 700)); if (syncErr) break; }
+    if (busy()) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，在缺失頁按「傳 LINE 給廠商」'); return; }
+    lineSheet(outs.map(o => o.id));
   }
+}
+// 傳 LINE 的按鈕（好幾家就一家一個按鈕，傳完一家回來按下一家）
+function lineSheet(ids) {
+  sheet(`<h3>已上傳，傳 LINE 給廠商</h3>${ids.length > 1 ? '<div class="muted">每家廠商各按一次，傳完回到這裡按下一家。</div>' : ''}
+    ${ids.map(id => { const d = state.defects[id]; return `<button class="btn line block" id="ln-${id}" onclick="sendLine('${id}');this.textContent=${jsq('✔ 已開啟 LINE：' + vName(d.vid))};this.classList.add('ghost')">${ids.length > 1 ? noText(d) + ' ' : ''}傳給 ${esc(vName(d.vid))}</button>`; }).join('')}
+    <button class="btn ghost block" onclick="closeLayer()">${ids.length > 1 ? '完成' : '先不要'}</button>`);
 }
 // 在填缺失時新增廠商
 function newVendor(cat, trade) { editVendor(null, cat, trade); }
@@ -889,6 +939,7 @@ VIEWS.detail = () => {
       <tr><th>改善期限</th><td>${dueText(d, true)}</td></tr>
       <tr><th>開單</th><td>${esc(d.by || '')} ${esc(d.created || '')}</td></tr>
     </table></div>
+  ${groupHTML(d)}
   ${subs.map(s => s.html).join('')}
   <div class="card">
     ${d.vid ? `<button class="btn line block" onclick="sendLine('${d.id}')">傳 LINE 給廠商</button>` : ''}
@@ -909,6 +960,13 @@ VIEWS.detail = () => {
   <div class="card"><h3>處理紀錄</h3><div class="log">${(d.log || []).map(l => `<div><span>${esc(l.at)}</span>${esc(l.msg)}${l.who ? `（${esc(l.who)}）` : ''}</div>`).join('') || '<span>還沒上傳</span>'}</div></div>
   ${canDel ? `<button class="btn ghost block" style="color:var(--wait)" onclick="delDefect('${d.id}')">刪除這筆缺失</button>` : ''}`;
 };
+function groupHTML(d) {
+  if (!d.grp) return '';
+  const sib = Object.values(state.defects).filter(x => x.grp === d.grp && x.id !== d.id).sort((a, b) => (a.no || 1e9) - (b.no || 1e9));
+  if (!sib.length) return '';
+  return `<div class="card"><h3>同一缺失也派給</h3>${sib.map(x => `<div class="user-row" onclick="go({name:'detail',id:'${x.id}'})"><span class="grow">${noText(x)}　${esc(vName(x.vid))}</span>${stTag(x)}</div>`).join('')}
+    <button class="btn line block" onclick="lineSheet(${esc(JSON.stringify([d.id].concat(sib.map(x => x.id))))}.filter(id=>checkSendable(id)))">傳 LINE 給這幾家</button></div>`;
+}
 function submitReview() {
   const d = clone(state.defects[rv.id]);
   if (!rv.ok && !rv.note.trim()) { toast('請寫不合格的原因'); return; }
@@ -928,7 +986,11 @@ function delDefect(id) {
   const d = state.defects[id];
   delete state.defects[id];
   if (d.v) outbox.del.push(id);
-  else outbox.ph = outbox.ph.filter(p => !d.photos.includes(p));
+  else {
+    // 還沒上傳就刪：照片也不用傳了（同一組其他單還在用的照樣要傳）
+    const used = new Set(Object.values(state.defects).flatMap(x => x.photos || []));
+    outbox.ph = outbox.ph.filter(p => !d.photos.includes(p) || used.has(p));
+  }
   delete outbox.d[id];
   persist(); goBack();
 }

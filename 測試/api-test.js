@@ -157,5 +157,18 @@ okCall({ action: 'saveCustom', token: ta, op: 'drop', kind: 'trade', key: '結�
 okCall({ action: 'saveCustom', token: tc, op: 'drop', kind: 'phrase', key: '結構體|鋼筋', text: '0-1 鋼筋外露' }, '自己拿掉');
 ok(okCall({ action: 'list', token: tc }, '讀').customs.length === 0, '都拿掉了');
 
+// 同一缺失派給好幾家：共用照片，刪一張不會刪到別張的照片
+okCall({ action: 'uploadPhoto', token: tb, id: 'gp0001', data: img }, '共用照片');
+const G = { pid: 'proj01', cat: '室內裝修', trade: '其他', bldg: 'A棟', floor: '2F', spot: '', note: '施工垃圾未清', req: '', photos: ['gp0001'], due: '2026-11-20', status: 'wait', reviews: [], grp: 'grp0001' };
+const g1 = okCall({ action: 'saveDefect', token: tb, defect: Object.assign({ id: 'grp0001', vid: 'ven001' }, G), baseV: 0 }, '派給第一家');
+const g2 = okCall({ action: 'saveDefect', token: tb, defect: Object.assign({ id: 'grp0002', vid: 'ven002' }, G), baseV: 0 }, '派給第二家');
+ok(g1.defect.grp === 'grp0001' && g2.defect.grp === 'grp0001' && g2.defect.no === g1.defect.no + 1, '同一組、各自編號');
+x = cp(g2.defect); x.grp = 'hack01'; x.note = '改';
+ok(okCall({ action: 'saveDefect', token: tb, defect: x, baseV: g2.v }, '改內容').defect.grp === 'grp0001', '組別不能被改');
+okCall({ action: 'deleteDefect', token: ta, id: 'grp0001' }, '刪第一張');
+ok(!env._files.find(f => f.name === 'gp0001.jpg').trashed, '別張還在用的照片沒被刪');
+okCall({ action: 'deleteDefect', token: ta, id: 'grp0002' }, '刪第二張');
+ok(env._files.find(f => f.name === 'gp0001.jpg').trashed, '都刪了照片才進垃圾桶');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

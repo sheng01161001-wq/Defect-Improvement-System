@@ -348,6 +348,8 @@ function saveDefect_(q, u) {
       id: x.id, pid: x.pid, cat: x.cat, trade: str_(x.trade, 20), vid: x.vid || '',
       bldg: str_(x.bldg, 20), floor: str_(x.floor, 20), spot: str_(x.spot, 60),
       note: str_(x.note, 2000), req: str_(x.req, 2000), photos: x.photos, due: x.due, status: x.status,
+      // 同一缺失派給好幾家時，每家一張單，用 grp 串起來（共用照片）
+      grp: hit ? (hit.d.grp || '') : (okId_(x.grp) ? x.grp : ''),
     };
     // 廠商不在這個建案（例如沒網路時開單，期間別人把他移出）→ 自動加回這個建案，不要讓整筆缺失被擋掉
     const joinVendor = xv && (!hit || hit.d.vid !== x.vid) && xv.pids.indexOf(x.pid) < 0;
@@ -390,7 +392,7 @@ function saveDefect_(q, u) {
       if (!['cat', 'trade', 'bldg', 'floor', 'spot', 'note', 'req', 'photos'].every(same)) log.push('修改缺失內容');
       // 拿掉的照片丟垃圾桶（30 天內可從雲端硬碟救回）
       const keep = {}; photosOfD_(d).forEach(id => { keep[id] = 1; });
-      trashPhotos_(photosOfD_(o).filter(id => !keep[id]));
+      trashPhotos_(photosOfD_(o).filter(id => !keep[id]), all, d.id);
     }
     if (!log.length) return { v: oldV, defect: outD_(hit) };
     d.log = d.log.concat(log.map(m => ({ at: now_(), who, msg: m })));
@@ -403,12 +405,12 @@ function saveDefect_(q, u) {
 // 刪除：後台隨時可刪；開單的人在廠商還沒回報前可刪
 function deleteDefect_(q, u) {
   return withLock_(() => {
-    const hit = defectRows_().find(h => h.id === q.id);
+    const all = defectRows_(), hit = all.find(h => h.id === q.id);
     if (!hit) return {};
     const o = hit.d;
     if (u.role !== 'admin' && !(o.byUser === u.user && o.status === 'wait' && !(o.fixes || []).length && !(o.reviews || []).length))
       throw new Error('只有後台帳號，或開單的人在廠商回報前能刪除');
-    trashPhotos_(photosOfD_(o));
+    trashPhotos_(photosOfD_(o), all, o.id);
     sheet_('缺失').deleteRow(hit.row);
     return {};
   });
@@ -503,4 +505,9 @@ function getPhotos_(q) {
   });
   return { photos: out };
 }
-function trashPhotos_(ids) { ids.filter(okId_).forEach(id => { const f = findPhoto_(id); if (f) f.setTrashed(true); }); }
+// 照片丟垃圾桶；同一組的其他單還在用的不丟（all：全部缺失列、self：這張單）
+function trashPhotos_(ids, all, self) {
+  const used = {};
+  (all || []).forEach(h => { if (h.id !== self) photosOfD_(h.d).forEach(id => { used[id] = 1; }); });
+  ids.filter(id => okId_(id) && !used[id]).forEach(id => { const f = findPhoto_(id); if (f) f.setTrashed(true); });
+}
