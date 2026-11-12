@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v5';
+const VERSION = 'v6';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -487,7 +487,7 @@ function sheet(html) {
 // ── 畫面切換 ─────────────────────────────
 let view = { name: 'start' };
 const stack = [];
-const TABS = [['start', '🏠', '首頁'], ['home', '📊', '總覽'], ['edit', '📷', '新增缺失'], ['list', '📋', '清單'], ['review', '✅', '複查'], ['vendors', '🏢', '廠商']];
+const TABS = [['start', '🏠', '首頁'], ['home', '📊', '總覽'], ['list', '📋', '清單'], ['review', '✅', '複查'], ['vendors', '🏢', '廠商']];
 function go(v) { stack.push(view); view = v; render(); scrollTo(0, 0); }
 let tabPrev = null;   // 從哪個分頁切過來的（分頁也能按「返回」）
 function tab(name) {
@@ -597,7 +597,7 @@ VIEWS.start = () => {
   hdr('缺失改善系統', { right: ['⚙', () => go({ name: 'settings' })] });
   const ps = activeProjects();
   if (!ps.length) return `<div class="card"><h3>還沒有建案</h3>${isAdmin()
-    ? `<p class="muted">先新增一個建案，才能開始記缺失。</p><button class="btn block" onclick="go({name:'projects'})">新增建案</button>`
+    ? `<p class="muted">先新增一個建案，才能開始記缺失。</p><button class="btn block" onclick="editProject(null)">＋ 新增建案</button>`
     : '<p class="muted">請後台人員先新增建案。</p><button class="btn ghost block" onclick="pull()">重新整理</button>'}</div>`;
   const cur = curP();
   return `<div class="muted" style="margin:0 4px 8px">點建案進去看缺失、開單</div>` + ps.map(p => {
@@ -608,7 +608,7 @@ VIEWS.start = () => {
       <div class="row wrap" style="margin-top:8px;gap:6px">
         <span class="tag s-wait">待改善 ${n('wait') + n('doing')}</span>${late ? `<span class="tag s-wait" style="background:#a61e1e">逾期 ${late}</span>` : ''}
         <span class="tag s-check">待複查 ${n('check')}</span><span class="tag s-done">已結案 ${n('done')}</span></div></div>`;
-  }).join('') + (isAdmin() ? `<button class="btn ghost block" onclick="go({name:'projects'})">管理建案</button>` : '');
+  }).join('') + (isAdmin() ? `<button class="btn block" onclick="editProject(null)">＋ 新增建案</button><button class="btn ghost block" onclick="go({name:'projects'})">管理建案（改名、停用）</button>` : '');
 };
 function openProject(id) { localStorage.setItem('dfi_pid', id); tab('home'); }
 
@@ -616,27 +616,21 @@ function openProject(id) { localStorage.setItem('dfi_pid', id); tab('home'); }
 VIEWS.home = () => {
   const p = curP();
   hdr(p ? p.name + ' ▾' : '缺失改善系統', { pick: true, right: ['⚙', () => go({ name: 'settings' })] });
-  if (!p) return `<div class="card"><h3>還沒有建案</h3>${isAdmin()
-    ? '<p class="muted">先新增一個建案，才能開始記缺失。</p><button class="btn block" onclick="go({name:\'projects\'})">新增建案</button>'
-    : '<p class="muted">請後台人員先新增建案。</p><button class="btn ghost block" onclick="pull()">重新整理</button>'}</div>`;
-  const ds = projDefects(), cnt = s => ds.filter(d => d.status === s).length;
-  const late = ds.filter(isLate).sort((a, b) => a.due.localeCompare(b.due));
-  const soon = ds.filter(d => (d.status === 'wait' || d.status === 'doing') && !isLate(d) && daysBetween(today(), d.due) <= 2).sort((a, b) => a.due.localeCompare(b.due));
-  // 各廠商未結案
-  const byV = {};
-  ds.filter(d => OPEN(d.status)).forEach(d => { const k = d.vid || ''; (byV[k] = byV[k] || { n: 0, late: 0 }).n++; if (isLate(d)) byV[k].late++; });
-  const vs = Object.entries(byV).sort((a, b) => b[1].n - a[1].n), max = Math.max(1, ...vs.map(x => x[1].n));
-  const color = c => ({ '結構體': 'var(--c1)', '室內裝修': 'var(--c2)', '室外裝修': 'var(--c3)' }[c] || '#999');
-  return `<div class="stats">${['wait', 'doing', 'check', 'done'].map(s => `<button class="s-${s}" onclick="go({name:'list',st:'${s}'})"><b>${cnt(s)}</b><span>${ST[s]}</span></button>`).join('')}</div>
-    <button class="btn block" style="margin:0 0 12px;padding:14px;font-size:17px" onclick="tab('edit')">📷 新增缺失</button>
-    ${late.length ? `<div class="card"><h3>⚠ 逾期未改善（${late.length} 件）</h3>${late.slice(0, 5).map(itemHTML).join('')}${late.length > 5 ? `<button class="btn ghost block" onclick="go({name:'list',st:'late'})">看全部 ${late.length} 件</button>` : ''}</div>` : ''}
-    ${soon.length ? `<div class="card"><h3>⏰ 快到期（2 天內）</h3>${soon.slice(0, 5).map(itemHTML).join('')}</div>` : ''}
-    <div class="card"><h3>各廠商未結案</h3>${vs.length ? vs.map(([vid, x]) => {
+  if (!p) return `<div class="card"><h3>還沒有建案</h3><p class="muted">請到「首頁」選擇或新增建案。</p><button class="btn block" onclick="tab('start')">回首頁</button></div>`;
+  // 各廠商還有幾件（未結案），多的排前面；點進去就是該廠商的清單
+  const open = projDefects().filter(d => OPEN(d.status)), byV = {};
+  open.forEach(d => { const k = d.vid || ''; const x = byV[k] = byV[k] || { n: 0, late: 0, check: 0 }; x.n++; if (isLate(d)) x.late++; if (d.status === 'check') x.check++; });
+  const vs = Object.entries(byV).sort((a, b) => b[1].n - a[1].n || b[1].late - a[1].late);
+  return `<button class="btn block" style="margin:0 0 12px;padding:14px;font-size:17px" onclick="newDefect()">📷 新增缺失</button>
+    <div class="card"><h3>各廠商還有幾件（共 ${open.length} 件未結案）</h3>${vs.length ? vs.map(([vid, x]) => {
       const v = vendorOf(vid);
-      return `<div class="bar" onclick="${vid ? `go({name:'vendor',id:'${vid}'})` : `go({name:'list',vid:''})`}"><span class="n">${esc(v ? v.name : '未指定廠商')}</span><span class="b"><i style="width:${x.n / max * 100}%;background:${color(v && v.cat)}"></i></span><span class="c">${x.n} 件${x.late ? `<br><span class="red">逾期 ${x.late}</span>` : ''}</span></div>`;
-    }).join('') : '<div class="muted">目前沒有未結案的缺失 👍</div>'}
-    <div style="margin-top:8px">${CATS.map(catTag).join('')}</div></div>`;
+      return `<div class="user-row" onclick="go({name:'list',vid:'${vid}',st:'open'})">
+        <div class="grow"><b>${esc(v ? v.name : '未指定廠商')}</b> ${v ? catTag(v.cat) : ''}
+          <div class="muted">${x.late ? `<span class="red">逾期 ${x.late}</span>　` : ''}${x.check ? `待複查 ${x.check}` : ''}</div></div>
+        <b style="font-size:18px;white-space:nowrap">還有 ${x.n} 件</b><span class="muted">›</span></div>`;
+    }).join('') : '<div class="muted">目前沒有未結案的缺失 👍</div>'}</div>`;
 };
+function newDefect() { startDraft(null); go({ name: 'edit' }); }
 function itemHTML(d) {
   return `<div class="item ${isLate(d) ? 'late' : ''}" id="it-${d.id}" onclick="go({name:'detail',id:'${d.id}'})">
     <div class="thumb">${d.photos && d.photos[0] ? imgTag(d.photos[0]) : '📝'}</div>
@@ -893,6 +887,7 @@ VIEWS.list = () => {
     <div class="row" style="margin-bottom:10px"><select style="flex:1" onchange="LF.vid=this.value==='*'?null:this.value;render()">
       <option value="*">全部廠商</option>${vs.map(id => `<option value="${id}" ${LF.vid === id ? 'selected' : ''}>${esc(vName(id))}</option>`).join('')}</select>
       <input type="search" style="flex:1" placeholder="🔍 搜尋" value="${esc(LF.q)}" onchange="LF.q=this.value;render()"></div>
+    ${LF.vid ? `<div class="row" style="margin-bottom:8px"><b class="grow">🏢 ${esc(vName(LF.vid))}</b><button class="btn ghost small" onclick="go({name:'vendor',id:'${LF.vid}'})">廠商頁／傳 LINE ›</button></div>` : ''}
     <div class="muted" style="margin-bottom:6px">共 ${ds.length} 件</div>
     ${ds.length ? ds.map(itemHTML).join('') : '<div class="empty">沒有符合的缺失</div>'}`;
 };
@@ -1323,7 +1318,7 @@ async function vpSubmit(id) {
     if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
     fixLoaded(); migrateLocalCustoms();
     // 有沒存完的新缺失 → 直接回到新增畫面
-    if (localStorage.getItem('dfi_draft')) { view = { name: 'edit' }; startDraft(null); }
+    if (localStorage.getItem('dfi_draft')) { stack.push({ name: 'home' }); view = { name: 'edit' }; startDraft(null); }
     render();
     pull(true);
   } else render();
