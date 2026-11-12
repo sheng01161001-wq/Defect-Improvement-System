@@ -642,7 +642,7 @@ function imgs_(ids) {
 function pdfBlob_(hs, pn, vn, name) {
   const css = 'body{font-family:sans-serif;font-size:12px;color:#000}h2{text-align:center;letter-spacing:6px;margin:0 0 4px}.no{text-align:center;margin-bottom:10px}'
     + 'table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:5px 6px;vertical-align:top;text-align:left}th{background:#eef1f5;width:80px;white-space:nowrap}'
-    + 'img{width:160px;height:120px;border:1px solid #999;margin:2px}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}.foot{font-size:11px;margin-top:6px}.sign td{height:46px}.c{text-align:center}';
+    + 'img{width:160px;height:120px;border:1px solid #999;margin:2px}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}.foot{font-size:11px;margin-top:6px}.sign td{height:46px;vertical-align:middle}.c{text-align:center}';
   const body = hs.map(h => {
     const d = h.d, v = vn[d.vid], fix = (d.fixes || []).slice(-1)[0], okRv = (d.reviews || []).filter(r => r.ok).slice(-1)[0], back = (d.reviews || []).filter(r => !r.ok).slice(-1)[0], last = (d.reviews || []).slice(-1)[0];
     return '<div class="pg"><h2>缺失改善通知單</h2><div class="no">' + h_(pn[d.pid]) + '　　編號：No. ' + String(d.no).padStart(4, '0') + '　　狀態：' + STATUS[d.status] + '</div><table>'
@@ -655,7 +655,7 @@ function pdfBlob_(hs, pn, vn, name) {
       + '<tr><th>缺失照片</th><td colspan="3">' + (imgs_(d.photos) || '—') + '</td></tr>'
       + '<tr><th>改善後照片</th><td colspan="3">' + (fix ? imgs_(fix.photos) + (fix.note ? '<div>' + h_(fix.note) + '</div>' : '') : okRv && (okRv.photos || []).length ? imgs_(okRv.photos) : '<div style="height:50px"></div>') + '</td></tr></table>'
       + '<table class="sign" style="margin-top:8px"><tr><th class="c">開單人</th><th class="c">廠商簽收</th><th class="c">複查人</th><th class="c">結案日期</th></tr>'
-      + '<tr><td>' + h_(d.by) + '</td><td></td><td>' + (last && last.ok ? h_(last.by) : '') + '</td><td>' + (d.status === 'done' && last ? roc_(String(last.at || '').slice(0, 10)) : '') + '</td></tr></table>'
+      + '<tr><td class="c">' + h_(d.by) + '</td><td class="c"></td><td class="c">' + (last && last.ok ? h_(last.by) : '') + '</td><td class="c">' + (d.status === 'done' && last ? roc_(String(last.at || '').slice(0, 10)) : '') + '</td></tr></table>'
       + '<div class="foot">※ 逾期未改善者，依合約規定辦理。　※ 本單一式兩聯，一聯廠商留存。</div></div>';
   }).join('');
   return HtmlService.createHtmlOutput('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>').getAs('application/pdf').setName(name);
