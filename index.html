@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v15';
+const VERSION = 'v16';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -739,6 +739,8 @@ function keepDraft() { draftDirty = true; if (!view.id) localStorage.setItem('df
 const inProj = (v, pid) => (v.pids || []).includes(pid);
 const projVendors = () => { const p = curP(); return p ? state.vendors.filter(v => inProj(v, p.id)) : []; };
 function vendorsFor(cat) { return projVendors().filter(v => !v.disabled && v.cat === cat); }
+// 廠商依工項歸類：選了水電就只列做水電的廠商（不管登記在哪個大分類）
+const vendorsForTrade = t => projVendors().filter(v => !v.disabled && (v.trades || []).includes(t));
 VIEWS.edit = () => {
   const p = curP();
   hdr(view.id ? '修改缺失 ' + noText(draft) : '新增缺失', { right: view.id ? null : ['清空', () => { if (confirm('清空重填？')) { localStorage.removeItem('dfi_draft'); startDraft(null); render(); } }] });
@@ -751,11 +753,12 @@ VIEWS.edit = () => {
   const mine = myList('trade', d.cat).filter(t => !base.includes(t));
   const custom = d.trade && !base.includes(d.trade) && d.trade !== '其他';
   const trades = base.concat(mine, custom && !mine.includes(d.trade) ? [d.trade] : []);
-  const showAll = d._allV || d._other || custom;
+  const byTrade = d.trade && d.trade !== '其他' ? vendorsForTrade(d.trade) : null;
+  const showAll = d._allV || d._other || (custom && !(byTrade && byTrade.length));
   // 「其他」／自填工項：新開的單可以一次派給好幾家（全部或勾選部分）
   const multiOK = !view.id && (custom || d._other || d.trade === '其他');
   const multi = multiOK && d._multi;
-  const vs = vendorsFor(d.cat);
+  const vs = byTrade || vendorsFor(d.cat);
   const myPh = myList('phrase', d.cat + '|' + d.trade);
   const phrases = ((TRADES[d.cat] || {})[d.trade] || []).concat(myPh.filter(t => !((TRADES[d.cat] || {})[d.trade] || []).includes(t)));
   const used = f => [...new Set(Object.values(state.defects).filter(x => x.pid === p.id).map(x => x[f]).filter(Boolean))];
@@ -776,11 +779,11 @@ VIEWS.edit = () => {
     <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}${mine.includes(t) && canDropMine('trade', d.cat, t) ? ` <span onclick="event.stopPropagation();dropMine('trade',${jsq(d.cat)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
       <button class="chip ${d._other || d.trade === '其他' ? 'on' : ''}" onclick="otherTrade()">其他（自填）</button></div>
     ${d._other ? `<div class="row" style="margin-top:6px"><input type="text" id="otT" class="grow" maxlength="20" placeholder="要的話打工項名稱，例如：防火披覆（可不填）"><button class="btn small" onclick="setOtherTrade()">確定</button></div>` : ''}
-    <label class="f">負責廠商${multi ? '（可複選，每家各開一張單）' : d.trade ? '（依工項自動帶出，可改）' : ''}</label>
+    <label class="f">負責廠商${multi ? '（可複選，每家各開一張單）' : byTrade && !showAll ? `（只列做「${esc(d.trade)}」的廠商）` : ''}</label>
     ${multiOK ? `<div class="chips" style="margin-bottom:6px"><button class="chip ${!multi ? 'on' : ''}" onclick="draft._multi=false;keepDraft();render()">派給一家</button><button class="chip ${multi ? 'on' : ''}" onclick="draft._multi=true;draft.vids=draft.vids||(draft.vid?[draft.vid]:[]);keepDraft();render()">派給多家</button></div>` : ''}
     ${multi ? multiVendorHTML(d) : `<div class="row"><select class="grow" onchange="pickVendor(this.value)">
       <option value="">— 選廠商 —</option>
-      ${showAll ? allVendorOptions(d.vid) : vs.map(v => vOpt(v, d.vid)).join('') + (d.vid && !vs.some(v => v.id === d.vid) ? `<option value="${d.vid}" selected>${esc(vName(d.vid))}</option>` : '')}
+      ${showAll ? allVendorOptions(d.vid) : (vs.length ? '' : `<option value="" disabled>（這個建案還沒有做「${esc(d.trade)}」的廠商）</option>`) + vs.map(v => vOpt(v, d.vid)).join('') + (d.vid && !vs.some(v => v.id === d.vid) ? `<option value="${d.vid}" selected>${esc(vName(d.vid))}</option>` : '')}
       ${showAll ? '' : '<option value="*">▼ 顯示全部廠商…</option>'}
       <option value="+">＋ 新增廠商…</option></select></div>`}
     <label class="f">缺失說明（點常用語快速帶入，也可以直接打字）</label>
@@ -921,13 +924,11 @@ function setCat(c) {
 function setTrade(t) {
   draft.trade = draft.trade === t ? '' : t;
   draft._other = false;
-  // 自動帶廠商：工項對得上的廠商；這個分類只有一家也帶（自填工項找這個建案全部廠商）
-  const std = Object.keys(TRADES[draft.cat] || {}).includes(draft.trade);
-  const vs = std ? vendorsFor(draft.cat) : projVendors().filter(v => !v.disabled), cur = vs.find(v => v.id === draft.vid);
-  if (draft.trade && !(cur && cur.trades.includes(draft.trade))) {
-    const hit = vs.filter(v => v.trades.includes(draft.trade));
-    if (hit.length) draft.vid = hit[0].id;
-    else if (!cur && vs.length === 1) draft.vid = vs[0].id;
+  // 自動帶廠商：只看做這個工項的廠商；只有一家就直接帶，好幾家讓你選，原本選的不是做這個的就清掉
+  draft._allV = false;
+  if (draft.trade && draft.trade !== '其他') {
+    const hit = vendorsForTrade(draft.trade);
+    if (!hit.some(v => v.id === draft.vid)) draft.vid = hit.length === 1 ? hit[0].id : '';
   }
   keepDraft(); render();
 }
