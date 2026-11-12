@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v6';
+const VERSION = 'v8';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -1215,7 +1215,8 @@ VIEWS.users = () => {
 function editUser(user) {
   const u = user ? users.find(x => x.user === user) : null;
   sheet(`<h3>${u ? '修改帳號' : '新增帳號'}</h3>
-    <label class="f">帳號（英文、數字）</label><input type="text" id="uu" value="${esc(u ? u.user : '')}" ${u ? 'disabled' : ''} autocapitalize="off">
+    <label class="f">帳號（登入用，英文、數字）</label><input type="text" id="uu" value="${esc(u ? u.user : '')}" data-old="${esc(u ? u.user : '')}" autocapitalize="off">
+    ${u ? '<div class="muted">改了之後要用新帳號登入，密碼不變；他開過的單、加過的常用語會跟著改。</div>' : ''}
     <label class="f">姓名</label><input type="text" id="un" value="${esc(u ? u.name : '')}">
     <label class="f">角色</label><select id="ur"><option value="staff">工地人員</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>後台</option></select>
     <label class="f">${u ? '重設密碼（不改就空白）' : '密碼（至少 6 個字）'}</label><input type="password" id="up" autocomplete="new-password">
@@ -1225,7 +1226,10 @@ function editUser(user) {
 async function saveUser(isNew, b) {
   b.disabled = true;
   try {
-    await api('saveUser', { isNew, user: $('uu').value, name: $('un').value, role: $('ur').value, pass: $('up').value || undefined, disabled: !!($('ud') && $('ud').checked) });
+    const old = $('uu').dataset.old, nu = $('uu').value.trim().toLowerCase();
+    if (!isNew && nu !== old && !confirm(`帳號「${old}」改成「${nu}」？之後要用新帳號登入。`)) { b.disabled = false; return; }
+    const r = await api('saveUser', { isNew, user: isNew ? nu : old, newUser: isNew ? undefined : nu, name: $('un').value, role: $('ur').value, pass: $('up').value || undefined, disabled: !!($('ud') && $('ud').checked) });
+    if (r.token) setAuth(r);   // 改的是自己：換成新的登入
     users = null; closeLayer(); render(); toast('已儲存');
   } catch (e) { toast(e.message); b.disabled = false; }
 }

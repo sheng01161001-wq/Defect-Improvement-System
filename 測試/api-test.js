@@ -170,5 +170,33 @@ ok(!env._files.find(f => f.name === 'gp0001.jpg').trashed, '別張還在用的�
 okCall({ action: 'deleteDefect', token: ta, id: 'grp0002' }, '刪第二張');
 ok(env._files.find(f => f.name === 'gp0001.jpg').trashed, '都刪了照片才進垃圾桶');
 
+// 後台在帳號管理改自己的姓名、密碼：拿到新登入，不會被踢出
+const S1 = okCall({ action: 'saveUser', token: ta, user: 'boss', name: '王後台改', role: 'admin', pass: 'test-pass-7' }, '後台改自己的姓名和密碼');
+ok(S1.token && S1.me.name === '王後台改', '改自己會拿到新登入');
+okCall({ action: 'list', token: S1.token }, '新登入可以用');
+okCall({ action: 'login', user: 'boss', pass: 'test-pass-7' }, '新密碼可以登入');
+const S2 = okCall({ action: 'saveUser', token: S1.token, user: 'boss', name: '王後台', role: 'admin' }, '只改姓名');
+ok(S2.token && S2.me.name === '王後台', '只改姓名也正常');
+
+// 改帳號名稱：舊帳號開的單、加的常用語跟著改；改自己拿到新登入
+okCall({ action: 'saveUser', token: S2.token, isNew: true, user: 'site9', name: '周工地', role: 'staff', pass: 'test-pass-9' }, '新增 site9');
+const t9 = okCall({ action: 'login', user: 'site9', pass: 'test-pass-9' }, 'site9 登入').token;
+const R1 = okCall({ action: 'saveDefect', token: t9, defect: Object.assign({}, D, { id: 'ren0001', photos: [], vid: 'ven001' }), baseV: 0 }, 'site9 開單');
+okCall({ action: 'saveCustom', token: t9, op: 'add', kind: 'trade', key: '室外裝修', text: '雨遮' }, 'site9 加工項');
+badCall({ action: 'saveUser', token: S2.token, user: 'site9', newUser: 'site1', name: '周工地', role: 'staff' }, '改成別人已用的帳號');
+badCall({ action: 'saveUser', token: S2.token, user: 'site9', newUser: '周', name: '周工地', role: 'staff' }, '帳號用中文');
+okCall({ action: 'saveUser', token: S2.token, user: 'site9', newUser: '0123', name: '周工地', role: 'staff' }, '後台把 site9 改成 0123');
+badCall({ action: 'login', user: 'site9', pass: 'test-pass-9' }, '舊帳號不能登入');
+const t0 = okCall({ action: 'login', user: '0123', pass: 'test-pass-9' }, '新帳號（全數字）可以登入').token;
+let LL = okCall({ action: 'list', token: t0 }, '讀');
+ok(LL.defects.find(z => z.id === 'ren0001').byUser === '0123' && LL.defects.find(z => z.id === 'ren0001').v === R1.v, '舊單跟著改、版本不變');
+ok(LL.customs.find(c => c.text === '雨遮').byUser === '0123', '常用語跟著改');
+okCall({ action: 'saveCustom', token: t0, op: 'drop', kind: 'trade', key: '室外裝修', text: '雨遮' }, '改名後還能拿掉自己加的');
+okCall({ action: 'deleteDefect', token: t0, id: 'ren0001' }, '改名後還能刪自己開的單');
+// 後台改自己的帳號名稱
+const S3 = okCall({ action: 'saveUser', token: S2.token, user: 'boss', newUser: 'chief', name: '王後台', role: 'admin' }, '後台改自己的帳號名稱');
+ok(S3.token && S3.me.user === 'chief', '拿到新帳號的登入');
+okCall({ action: 'list', token: S3.token }, '新登入可以用');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

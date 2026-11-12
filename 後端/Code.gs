@@ -80,7 +80,7 @@ function users_() {
   const sh = sheet_('帳號'), last = sh.getLastRow();
   if (last < 2) return [];
   return sh.getRange(2, 1, last - 1, 7).getValues().map((r, i) => ({
-    row: i + 2, user: String(r[0]).toLowerCase(), name: String(r[1]), role: r[2] === '後台' ? 'admin' : 'staff',
+    row: i + 2, user: un_(r[0]).toLowerCase(), name: un_(r[1]), role: r[2] === '後台' ? 'admin' : 'staff',
     salt: String(r[3]), hash: String(r[4]), disabled: r[5] === '是' }));
 }
 const pub_ = u => ({ user: u.user, name: u.name, role: u.role, disabled: u.disabled });
@@ -115,7 +115,7 @@ function checkNewUser_(user, name, pass) {
 }
 function addUser_(user, name, role, pass) {
   const salt = Utilities.getUuid();
-  sheet_('帳號').appendRow([user, String(name).trim(), ROLES[role] || ROLES.staff, salt, hash_(String(pass), salt), '', now_()]);
+  sheet_('帳號').appendRow([txt_(user), txt_(String(name).trim()), ROLES[role] || ROLES.staff, salt, hash_(String(pass), salt), '', now_()]);
 }
 function hasUsers_() { return { has: users_().length > 0 }; }
 function setupFirst_(q) {
@@ -165,14 +165,36 @@ function saveUser_(q, me) {
     if (u.user === me.user && (role !== 'admin' || q.disabled)) throw new Error('不能停用自己或拿掉自己的後台權限');
     checkNewUser_(user, q.name, q.pass || null);
     const sh = sheet_('帳號');
-    sh.getRange(u.row, 2, 1, 2).setValues([[String(q.name).trim(), ROLES[role]]]);
+    sh.getRange(u.row, 2, 1, 2).setValues([[txt_(String(q.name).trim()), ROLES[role]]]);
     sh.getRange(u.row, 6).setValue(q.disabled ? '是' : '');
     if (q.pass) {
       const salt = Utilities.getUuid();
       sh.getRange(u.row, 4, 1, 2).setValues([[salt, hash_(String(q.pass), salt)]]);
     }
+    // 改帳號名稱：舊帳號開的單、加的常用語一起改到新名稱（「開單的人可刪」「加的人可拿掉」才認得）
+    const newUser = q.newUser != null ? cleanUser_(q.newUser) : user;
+    if (newUser !== user) {
+      checkNewUser_(newUser, q.name, null);
+      if (all.some(x => x.user === newUser)) throw new Error('帳號「' + newUser + '」已經有人用了');
+      sh.getRange(u.row, 1).setValue(txt_(newUser));
+      renameOwner_(user, newUser);
+    }
+    // 改的是自己：換密碼或帳號名稱會讓舊登入失效，直接給新的登入，不要把自己踢出去
+    if (u.user === me.user) {
+      const nu = users_().find(x => x.user === newUser);
+      return { token: token_(nu), me: pub_(nu) };
+    }
     return {};
   });
+}
+
+function renameOwner_(from, to) {
+  const dsh = sheet_('缺失'), vendors = vendors_();
+  defectRows_().forEach(h => {
+    if (h.d && h.d.byUser === from) { h.d.byUser = to; writeDefect_(dsh, h.row, h.d, h.v, h.who, vendors, h.at); }   // 版本、時間不變
+  });
+  const csh = customSheet_();
+  customs_().forEach(c => { if (c.byUser === from) csh.getRange(c.row, 5).setValue(to); });
 }
 
 // ── 試算表列 ─────────────────────────────────
@@ -262,12 +284,17 @@ function saveVendor_(q, u) {
 
 // ── 缺失 ─────────────────────────────────────
 function defectRows_() {
-  return rows_('缺失').map(({ row, r }) => ({ row, id: String(r[0]), v: Number(r[9]) || 0, at: String(r[10]), who: String(r[11]), d: readJson_(r, D_HEAD) }));
+  return rows_('缺失').map(({ row, r }) => ({ row, id: String(r[0]), v: Number(r[9]) || 0, at: timeStr_(r[10]), who: String(r[11]), d: readJson_(r, D_HEAD) }));
 }
-function writeDefect_(sh, row, d, v, who, vendors) {
+// 試算表會把「2026-11-12 09:14」變成日期，讀回來統一轉回文字（舊資料也適用）
+function timeStr_(x) {
+  if (Object.prototype.toString.call(x) === '[object Date]') return Utilities.formatDate(x, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  return un_(x);
+}
+function writeDefect_(sh, row, d, v, who, vendors, at) {
   const vd = vendors.find(x => x.id === d.vid);
   const loc = [d.bldg, d.floor, d.spot].filter(String).join(' ');
-  writeRow_(sh, row, [d.id, d.pid, d.no, STATUS[d.status], d.cat, txt_(d.trade), txt_(vd ? vd.name : ''), txt_(loc), txt_(d.due), v, now_(), who], d);
+  writeRow_(sh, row, [d.id, d.pid, d.no, STATUS[d.status], d.cat, txt_(d.trade), txt_(vd ? vd.name : ''), txt_(loc), txt_(d.due), v, txt_(at || now_()), who], d);
 }
 const outD_ = h => Object.assign({}, h.d, { v: h.v, at: h.at, who: h.who });
 
