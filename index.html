@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v2';
+const VERSION = 'v3';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -269,10 +269,10 @@ function viewPhoto(id, onDraw) {
   const L = $('layer');
   L.innerHTML = `<div class="viewer" onclick="if(event.target===this||event.target.tagName==='IMG')closeLayer()">${imgTag(id)}
     <div class="vb">${onDraw ? '<button class="btn line" id="drawBtn">✏️ 畫圈標示</button>' : ''}<button class="btn ghost" onclick="closeLayer()">關閉</button></div></div>`;
-  hydratePhotos(L);
+  hydratePhotos(L); armHistory();
   if (onDraw) $('drawBtn').onclick = () => annotate(id, onDraw);
 }
-function closeLayer() { $('layer').innerHTML = ''; }
+function closeLayer() { $('layer').innerHTML = ''; armHistory(); }
 // 在照片上畫圈：畫好存成一張新照片
 async function annotate(id, done) {
   const data = await photoGet(id);
@@ -470,6 +470,7 @@ function pickProject() {
 function sheet(html) {
   $('layer').innerHTML = `<div class="modal" onclick="if(event.target===this)closeLayer()"><div class="sheet">${html}</div></div>`;
   hydratePhotos($('layer'));
+  armHistory();
 }
 
 // ── 畫面切換 ─────────────────────────────
@@ -477,7 +478,9 @@ let view = { name: 'home' };
 const stack = [];
 const TABS = [['home', '🏠', '總覽'], ['edit', '📷', '新增缺失'], ['list', '📋', '清單'], ['review', '✅', '複查'], ['vendors', '🏢', '廠商']];
 function go(v) { stack.push(view); view = v; render(); scrollTo(0, 0); }
+let tabPrev = null;   // 從哪個分頁切過來的（分頁也能按「返回」）
 function tab(name) {
+  if (view.name !== name || stack.length) tabPrev = stack.length ? stack[0] : view;
   stack.length = 0;
   if (name === 'list') LF.vid = null;
   if (name === 'edit' && view.name === 'edit' && !view.id) return;
@@ -487,10 +490,29 @@ function tab(name) {
 }
 function goBack() {
   if (view.name === 'edit' && view.id && draftDirty && !confirm('修改還沒存，確定離開？')) return;
-  view = stack.pop() || { name: 'home' };
+  if (stack.length) view = stack.pop();
+  else { view = tabPrev && tabPrev.name !== view.name ? tabPrev : { name: 'home' }; tabPrev = null; }
   if (view.name === 'edit' && !view.id) startDraft(null);
   render();
 }
+// 還能不能往回（畫面上的「返回」和手機的返回鍵共用）
+const canBack = () => !!$('layer').innerHTML || stack.length > 0 || !['home', 'login'].includes(view.name);
+// 手機返回鍵／返回手勢：先關掉跳出的視窗，再回上一頁，都沒有了才離開 App
+let histArmed = false, skipPop = false;
+function armHistory() {
+  if (VCODE) return;
+  if (!histArmed && canBack()) { history.pushState({ dfi: 1 }, ''); histArmed = true; }
+  // 用畫面上的「返回」回到首頁了：把多出來的那一筆收掉，手機按一次返回就能離開
+  else if (histArmed && !canBack()) { histArmed = false; skipPop = true; history.back(); }
+}
+window.addEventListener('popstate', () => {
+  if (skipPop) { skipPop = false; return; }
+  histArmed = false;
+  if (VCODE) return;
+  if ($('layer').innerHTML) closeLayer();
+  else if (canBack()) goBack();
+  armHistory();
+});
 function render(soft) {
   // soft：背景資料更新時，正在打字的畫面不要重畫
   if (soft && ['edit', 'login', 'notice', 'userEdit'].includes(view.name)) { setNav(); return; }
@@ -502,12 +524,13 @@ function render(soft) {
   if (VCODE) { renderVendorPortal(); return; }
   if (!auth) view = { name: 'login' };
   const fn = VIEWS[view.name] || VIEWS.home;
-  $('backBtn').style.display = stack.length ? '' : 'none';
+  $('backBtn').style.display = canBack() && view.name !== 'notice' ? '' : 'none';
   $('app').innerHTML = fn();
   setNav(); setSyncUI();
   if (soft) scrollTo(0, y);
   hydratePhotos($('app'));
   if (AFTER[view.name]) AFTER[view.name]();
+  armHistory();
 }
 function setNav() {
   const N = $('nav');
@@ -615,9 +638,14 @@ VIEWS.edit = () => {
   const d = draft;
   photoLists.draft = { get: () => d.photos, editable: true, changed: () => { keepDraft(); render(); } };
   photoTargets.draft = id => { d.photos.push(id); keepDraft(); render(); };
-  const trades = Object.keys(TRADES[d.cat] || {});
+  const base = Object.keys(TRADES[d.cat] || {}).filter(t => t !== '其他');
+  const mine = myList('dfi_trades', d.cat).filter(t => !base.includes(t));
+  const custom = d.trade && !base.includes(d.trade) && d.trade !== '其他';
+  const trades = base.concat(mine, custom && !mine.includes(d.trade) ? [d.trade] : []);
+  const showAll = d._allV || d._other || custom;
   const vs = vendorsFor(d.cat);
-  const phrases = (TRADES[d.cat] || {})[d.trade] || [];
+  const myPh = myList('dfi_phr', d.cat + '|' + d.trade);
+  const phrases = ((TRADES[d.cat] || {})[d.trade] || []).concat(myPh.filter(t => !((TRADES[d.cat] || {})[d.trade] || []).includes(t)));
   const used = f => [...new Set(Object.values(state.defects).filter(x => x.pid === p.id).map(x => x[f]).filter(Boolean))];
   const dueN = [3, 7, 14].includes(d.dueN) ? d.dueN : 0;
   return `<div class="card">
@@ -632,15 +660,18 @@ VIEWS.edit = () => {
     <label class="f">大分類</label>
     <div class="chips">${CATS.map(c => `<button class="chip ${d.cat === c ? 'on' : ''}" onclick="setCat('${c}')">${c}</button>`).join('')}</div>
     <label class="f">工項</label>
-    <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}</button>`).join('')}</div>
+    <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}${mine.includes(t) ? ` <span onclick="event.stopPropagation();dropMine('dfi_trades',${jsq(d.cat)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
+      <button class="chip ${d._other || d.trade === '其他' ? 'on' : ''}" onclick="otherTrade()">其他（自填）</button></div>
+    ${d._other ? `<div class="row" style="margin-top:6px"><input type="text" id="otT" class="grow" maxlength="20" placeholder="輸入工項名稱，例如：防火披覆"><button class="btn small" onclick="setOtherTrade()">確定</button></div>` : ''}
     <label class="f">負責廠商${d.trade ? '（依工項自動帶出，可改）' : ''}</label>
-    <div class="row"><select class="grow" onchange="if(this.value==='+'){newVendor(draft.cat,draft.trade)}else{draft.vid=this.value;keepDraft()}">
+    <div class="row"><select class="grow" onchange="pickVendor(this.value)">
       <option value="">— 選廠商 —</option>
-      ${vs.map(v => `<option value="${v.id}" ${d.vid === v.id ? 'selected' : ''}>${esc(v.name)}${v.trades.length ? '（' + esc(v.trades.join('、')) + '）' : ''}</option>`).join('')}
-      ${d.vid && !vs.some(v => v.id === d.vid) ? `<option value="${d.vid}" selected>${esc(vName(d.vid))}</option>` : ''}
+      ${showAll ? allVendorOptions(d.vid) : vs.map(v => vOpt(v, d.vid)).join('') + (d.vid && !vs.some(v => v.id === d.vid) ? `<option value="${d.vid}" selected>${esc(vName(d.vid))}</option>` : '')}
+      ${showAll ? '' : '<option value="*">▼ 顯示全部廠商…</option>'}
       <option value="+">＋ 新增廠商…</option></select></div>
-    <label class="f">缺失說明${phrases.length ? '（點常用語快速帶入）' : ''}</label>
-    ${phrases.length ? `<div class="chips" style="margin-bottom:6px">${phrases.map(t => `<button class="chip" onclick="addPhrase(${jsq(t)})">${esc(t)}</button>`).join('')}</div>` : ''}
+    <label class="f">缺失說明（點常用語快速帶入，也可以直接打字）</label>
+    <div class="chips" style="margin-bottom:6px">${phrases.map(t => `<button class="chip" onclick="addPhrase(${jsq(t)})">${esc(t)}${myPh.includes(t) ? ` <span onclick="event.stopPropagation();dropMine('dfi_phr',${jsq(d.cat + '|' + d.trade)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
+      <button class="chip add" onclick="newPhrase()">＋ 新增常用語</button></div>
     <textarea id="noteT" placeholder="例如：樑底蜂窩約 30×20cm" oninput="draft.note=this.value;keepDraft()">${esc(d.note)}</textarea>
     <label class="f">改善要求（可不填）</label>
     <textarea placeholder="例如：打除鬆散部分後以無收縮水泥砂漿修補" oninput="draft.req=this.value;keepDraft()">${esc(d.req)}</textarea>
@@ -653,16 +684,68 @@ VIEWS.edit = () => {
     : `<button class="btn block" onclick="saveDraft(false)">儲存缺失</button>
        <button class="btn line block" onclick="saveDraft(true)">儲存並傳 LINE 給廠商</button>`}`;
 };
+// 使用者自己加的工項／常用語（存在這支手機）
+function myList(key, k) { try { return (JSON.parse(localStorage.getItem(key) || '{}')[k] || []); } catch (e) { return []; } }
+function addMine(key, k, t) {
+  let o = {}; try { o = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
+  o[k] = (o[k] || []).filter(x => x !== t).concat([t]);
+  localStorage.setItem(key, JSON.stringify(o));
+}
+function dropMine(key, k, t) {
+  if (!confirm(`從常用清單拿掉「${t}」？`)) return;
+  let o = {}; try { o = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
+  o[k] = (o[k] || []).filter(x => x !== t);
+  localStorage.setItem(key, JSON.stringify(o));
+  render();
+}
+function otherTrade() { draft._other = !draft._other; render(); if (draft._other) setTimeout(() => $('otT') && $('otT').focus(), 50); }
+function setOtherTrade() {
+  const t = ($('otT').value || '').trim().slice(0, 20);
+  if (!t) { toast('請輸入工項名稱'); return; }
+  draft._other = false;
+  if (!Object.keys(TRADES[draft.cat] || {}).includes(t)) addMine('dfi_trades', draft.cat, t);
+  draft.trade = '';
+  setTrade(t);
+}
+function newPhrase() {
+  const t = (prompt('新增常用語（之後點一下就能帶入）') || '').trim().slice(0, 40);
+  if (!t) return;
+  addMine('dfi_phr', draft.cat + '|' + draft.trade, t);
+  addPhrase(t); render();
+}
+const vOpt = (v, cur) => `<option value="${v.id}" ${cur === v.id ? 'selected' : ''}>${esc(v.name)}${v.trades.length ? '（' + esc(v.trades.join('、')) + '）' : ''}</option>`;
+// 全部廠商：這個建案的（依分類）＋其他建案的（選了會自動加入這個建案）
+function allVendorOptions(cur) {
+  const pv = projVendors().filter(v => !v.disabled), ov = otherVendors();
+  let h = CATS.map(c => { const g = pv.filter(v => v.cat === c); return g.length ? `<optgroup label="${esc(c)}">${g.map(v => vOpt(v, cur)).join('')}</optgroup>` : ''; }).join('');
+  if (ov.length) h += `<optgroup label="其他建案的廠商（選了會加入這個建案）">${ov.map(v => vOpt(v, cur)).join('')}</optgroup>`;
+  if (cur && !pv.concat(ov).some(v => v.id === cur)) h += `<option value="${cur}" selected>${esc(vName(cur))}</option>`;
+  return h;
+}
+function pickVendor(val) {
+  if (val === '+') { newVendor(draft.cat, draft.trade); return; }
+  if (val === '*') { draft._allV = true; render(); return; }
+  draft.vid = val;
+  // 選了其他建案的廠商：先在手機上加入這個建案（上傳時後端也會自動加）
+  const v = vendorOf(val);
+  if (v && !inProj(v, draft.pid)) {
+    vEdit = clone(v); vEdit._base = (v.pids || []).slice(); vEdit.pids = vEdit._base.concat([draft.pid]); vEdit._fromDraft = true; vEdit._quiet = true;
+    saveVendor();
+  }
+  keepDraft();
+}
 function setCat(c) {
   if (draft.cat === c) return;
-  draft.cat = c; draft.trade = '';
+  draft.cat = c; draft.trade = ''; draft._other = false;
   if (draft.vid && !vendorsFor(c).some(v => v.id === draft.vid)) draft.vid = '';
   keepDraft(); render();
 }
 function setTrade(t) {
   draft.trade = draft.trade === t ? '' : t;
-  // 自動帶廠商：工項對得上的廠商；這個分類只有一家也帶
-  const vs = vendorsFor(draft.cat), cur = vs.find(v => v.id === draft.vid);
+  draft._other = false;
+  // 自動帶廠商：工項對得上的廠商；這個分類只有一家也帶（自填工項找這個建案全部廠商）
+  const std = Object.keys(TRADES[draft.cat] || {}).includes(draft.trade);
+  const vs = std ? vendorsFor(draft.cat) : projVendors().filter(v => !v.disabled), cur = vs.find(v => v.id === draft.vid);
   if (draft.trade && !(cur && cur.trades.includes(draft.trade))) {
     const hit = vs.filter(v => v.trades.includes(draft.trade));
     if (hit.length) draft.vid = hit[0].id;
@@ -685,7 +768,7 @@ async function saveDraft(withLine) {
   if (withLine && !d.vid) { toast('請先選廠商'); return; }
   const isNew = !view.id;
   const newPh = d.photos.filter(id => !(d._orig || []).includes(id));
-  const out = clone(d); delete out._orig; delete out.dueN;
+  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV;
   if (isNew) { out.v = 0; out.by = auth.me.name; out.byUser = auth.me.user; out.created = ''; }
   else { const old = state.defects[d.id]; if (!old) { toast('這筆缺失已被刪除'); return; } SERVER_KEYS.forEach(k => { out[k] = old[k]; }); out.v = old.v; out.reviews = old.reviews; out.status = old.status; }
   saveD(out, newPh);
@@ -979,10 +1062,14 @@ async function saveVendor(resetCode) {
     const i = state.vendors.findIndex(x => x.id === v.id);
     if (i >= 0) state.vendors[i] = r.vendor; else state.vendors.push(r.vendor);
     persistNow(); closeLayer();
-    if (v._fromDraft && draft && inProj(r.vendor, draft.pid)) { draft.cat = v.cat; draft.vid = v.id; keepDraft(); }
-    toast(resetCode ? '已換新連結，記得把新連結傳給廠商' : '廠商已存');
+    if (v._fromDraft && draft && inProj(r.vendor, draft.pid)) {
+      // 開單時新建的廠商：分類跟著廠商；從全部廠商挑的：保留原本選的分類和工項
+      if (v._new && draft.cat !== v.cat) { draft.cat = v.cat; if (!Object.keys(TRADES[v.cat] || {}).includes(draft.trade)) draft.trade = ''; }
+      draft.vid = v.id; keepDraft();
+    }
+    if (!v._quiet) toast(resetCode ? '已換新連結，記得把新連結傳給廠商' : '廠商已存');
     render();
-  } catch (e) { toast(e.message.includes('網路') ? '新增廠商要有網路' : e.message); if (b) b.disabled = false; }
+  } catch (e) { if (!v._quiet) toast(e.message.includes('網路') ? '新增廠商要有網路' : e.message); if (b) b.disabled = false; }
 }
 function resetCode(id) {
   if (!confirm('換新連結後，舊連結就不能用了。確定？')) return;
