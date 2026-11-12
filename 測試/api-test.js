@@ -23,9 +23,11 @@ badCall({ action: 'listUsers', token: tb }, '工地人員看帳號清單');
 badCall({ action: 'saveProject', token: tb, project: { id: 'proj01', name: '冀晨' } }, '工地人員建建案');
 okCall({ action: 'saveProject', token: ta, project: { id: 'proj01', name: '冀晨' } }, '後台建建案');
 badCall({ action: 'saveProject', token: ta, project: { id: 'proj02', name: '冀晨' } }, '同名建案');
-const V = okCall({ action: 'saveVendor', token: tb, vendor: { id: 'ven001', name: '大成營造', cat: '結構體', trades: ['混凝土', '模板'], phone: '0912345678' } }, '工地人員新增廠商').vendor;
+const V = okCall({ action: 'saveVendor', token: tb, vendor: { id: 'ven001', name: '大成營造', cat: '結構體', trades: ['混凝土', '模板'], phone: '0912345678', pids: ['proj01', 'nope'] } }, '工地人員新增廠商').vendor;
+ok(V.pids.length === 1 && V.pids[0] === 'proj01', '廠商參與建案（不存在的建案會被拿掉）');
 ok(V.code && V.code.length === 24, '廠商有回報碼');
 const V2 = okCall({ action: 'saveVendor', token: ta, vendor: { id: 'ven002', name: '美家油漆', cat: '室內裝修', trades: ['油漆'] } }, '新增廠商2').vendor;
+ok(V2.pids.length === 0, '廠商2 還沒加入任何建案');
 badCall({ action: 'saveVendor', token: tb, vendor: Object.assign({}, V, { disabled: true }) }, '工地人員停用廠商');
 badCall({ action: 'saveVendor', token: tb, vendor: { id: 'ven003', name: '亂', cat: '其他' } }, '分類不對');
 let L = okCall({ action: 'list', token: tb }, '讀資料');
@@ -38,6 +40,14 @@ const D = { id: 'def0001', pid: 'proj01', cat: '結構體', trade: '混凝土', 
 badCall({ action: 'saveDefect', token: tb, defect: Object.assign({}, D, { status: 'done' }), baseV: 0 }, '新單直接結案');
 badCall({ action: 'saveDefect', token: tb, defect: Object.assign({}, D, { pid: 'nope' }), baseV: 0 }, '不存在的建案');
 badCall({ action: 'saveDefect', token: tb, defect: Object.assign({}, D, { note: '', photos: [] }), baseV: 0 }, '空白缺失');
+okCall({ action: 'saveDefect', token: tb, defect: Object.assign({}, D, { id: 'def0099', vid: 'ven002', photos: [] }), baseV: 0 }, '開單給不在建案的廠商（離線時被移出）');
+ok(call({ action: 'list', token: tb }).vendors.find(z => z.id === 'ven002').pids[0] === 'proj01', '廠商自動加回建案');
+okCall({ action: 'deleteDefect', token: ta, id: 'def0099' }, '刪測試單');
+// 兩人同時改：A 加入建案2、B 用舊畫面改電話 → 建案2 不會被蓋掉
+okCall({ action: 'saveProject', token: ta, project: { id: 'proj02', name: '第二案' } }, '建第二案');
+okCall({ action: 'saveVendor', token: tb, vendor: Object.assign({}, V2, { pids: ['proj01', 'proj02'], basePids: ['proj01'] }) }, 'A 把廠商2加入第二案');
+okCall({ action: 'saveVendor', token: tc, vendor: Object.assign({}, V2, { phone: '0911', pids: ['proj01'], basePids: ['proj01'] }) }, 'B 用舊畫面改電話');
+ok(call({ action: 'list', token: tb }).vendors.find(z => z.id === 'ven002').pids.join() === 'proj01,proj02', '同時修改不會蓋掉別人加的建案');
 let r = okCall({ action: 'saveDefect', token: tb, defect: D, baseV: 0 }, '開單');
 ok(r.v === 1 && r.defect.no === 1 && r.defect.by === '李工地', '編號 1、開單人');
 let d = r.defect, v = r.v;
@@ -53,6 +63,11 @@ ok(r.defect.no === 1 && r.defect.fixes.length === 0 && r.defect.note === '改說
 d = r.defect; v = r.v;
 x = cp(d); x.status = 'check';
 badCall({ action: 'saveDefect', token: tb, defect: x, baseV: v }, '工地人員直接改狀態');
+
+okCall({ action: 'saveVendor', token: tb, vendor: Object.assign({}, V2, { pids: [] }) }, '廠商2移出建案');
+x = cp(r2.defect); x.note = '移出後改說明';
+okCall({ action: 'saveDefect', token: tb, defect: x, baseV: r2.v }, '廠商移出建案後舊單照常能改');
+okCall({ action: 'saveVendor', token: tb, vendor: Object.assign({}, V2, { pids: ['proj01'] }) }, '廠商2再加回建案');
 
 // 廠商
 badCall({ action: 'vendorList', code: 'x'.repeat(24) }, '亂給回報碼');

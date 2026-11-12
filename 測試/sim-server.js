@@ -33,6 +33,7 @@ function makeEnv() {
       deleteRow(r) { rows.splice(r - 1, 1); },
       getRange(r, c, nr = 1, nc = 1) {
         return {
+          getValue() { return this.getValues()[0][0]; },
           getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => { const v = (rows[r - 1 + i] || [])[c - 1 + j]; return v == null ? '' : v; })),
           setValues(v) {
             if (c - 1 + nc > maxCols) throw new Error('超出欄數');

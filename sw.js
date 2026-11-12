@@ -1,5 +1,5 @@
 // 缺失改善系統 離線快取。改 index.html 或 data.js 時把版本號 +1。
-const CACHE = 'dfi-v1';
+const CACHE = 'dfi-v2';
 const FILES = ['./', './index.html', './data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

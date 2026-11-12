@@ -27,7 +27,7 @@ function 初始化() {
     const s0 = ss.getSheets()[0];
     s0.setName('帳號'); s0.appendRow(['帳號', '姓名', '角色', '鹽', '雜湊', '停用', '建立時間']);
     ss.insertSheet('建案').appendRow(['建案id', '名稱', '停用', '建立時間']);
-    ss.insertSheet('廠商').appendRow(['廠商id', '名稱', '分類', '工項', '聯絡人', '電話', '回報碼', '停用', '更新時間']);
+    ss.insertSheet('廠商').appendRow(['廠商id', '名稱', '分類', '工項', '聯絡人', '電話', '回報碼', '停用', '更新時間', '建案']);
     ss.insertSheet('缺失').appendRow(['缺失id', '建案id', '編號', '狀態', '分類', '工項', '廠商', '位置', '期限', '版本', '更新時間', '更新者', '資料']);
     DriveApp.getFileById(ss.getId()).moveTo(root);
     p.setProperty('SS_ID', ss.getId());
@@ -224,11 +224,11 @@ function saveProject_(q) {
 function vendors_() {
   return rows_('廠商').map(({ row, r }) => ({ row, id: String(r[0]), name: un_(r[1]), cat: String(r[2]),
     trades: un_(r[3]).split('、').filter(String), contact: un_(r[4]), phone: un_(r[5]),
-    code: String(r[6]), disabled: r[7] === '是' }));
+    code: String(r[6]), disabled: r[7] === '是', pids: String(r[9] || '').split(',').filter(String) }));
 }
-const pubVendor_ = v => ({ id: v.id, name: v.name, cat: v.cat, trades: v.trades, contact: v.contact, phone: v.phone, code: v.code, disabled: v.disabled });
+const pubVendor_ = v => ({ id: v.id, name: v.name, cat: v.cat, trades: v.trades, contact: v.contact, phone: v.phone, code: v.code, disabled: v.disabled, pids: v.pids });
 const newCode_ = () => (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 24);
-// 工地人員可新增、修改廠商；停用和換回報碼只有後台能做
+// 工地人員可新增、修改廠商（含加入／移出建案）；停用和換回報碼只有後台能做
 function saveVendor_(q, u) {
   return withLock_(() => {
     const v = q.vendor || {};
@@ -237,17 +237,26 @@ function saveVendor_(q, u) {
     if (!name) throw new Error('請填廠商名稱');
     if (CATS.indexOf(v.cat) < 0) throw new Error('請選分類');
     const trades = (Array.isArray(v.trades) ? v.trades : []).map(t => str_(t, 20)).filter(String).slice(0, 30);
+    // 參與的建案：同一家廠商可以在好幾個建案，回報連結共用一個
+    const pidOk = {}; projects_().forEach(p => { pidOk[p.id] = 1; });
+    let pids = (Array.isArray(v.pids) ? v.pids : []).filter((id, i, a) => pidOk[id] && a.indexOf(id) === i);
     const all = vendors_(), hit = all.find(x => x.id === v.id);
+    // 只套用這次「加入／移出」的差別，別人剛同時加的建案不會被舊畫面蓋掉
+    if (hit && Array.isArray(v.basePids)) {
+      const base = v.basePids, add = pids.filter(id => base.indexOf(id) < 0), rem = base.filter(id => pids.indexOf(id) < 0);
+      pids = hit.pids.filter(id => pidOk[id] && rem.indexOf(id) < 0).concat(add.filter(id => hit.pids.indexOf(id) < 0));
+    }
     if (all.some(x => x.id !== v.id && x.name === name)) throw new Error('已經有同名的廠商');
     const admin = u.role === 'admin';
     if (hit && !admin && (!!v.disabled !== hit.disabled || q.resetCode)) throw new Error('停用廠商、換連結只有後台帳號能做');
     const code = !hit || q.resetCode ? newCode_() : hit.code;
     // 文字前面加 '：名稱像「3-1」「0123」「=…」才不會被試算表變成日期、數字或公式
-    const row = [v.id, txt_(name), v.cat, txt_(trades.join('、')), txt_(str_(v.contact, 30)), txt_(str_(v.phone, 30)), code, v.disabled ? '是' : '', now_()];
+    const row = [v.id, txt_(name), v.cat, txt_(trades.join('、')), txt_(str_(v.contact, 30)), txt_(str_(v.phone, 30)), code, v.disabled ? '是' : '', now_(), pids.join(',')];
     const sh = sheet_('廠商');
+    if (sh.getRange(1, 10).getValue() === '') sh.getRange(1, 10).setValue('建案');   // 舊表補欄名
     if (hit) sh.getRange(hit.row, 1, 1, row.length).setValues([row]);
     else sh.appendRow(row);
-    return { vendor: pubVendor_({ id: v.id, name, cat: v.cat, trades, contact: str_(v.contact, 30), phone: str_(v.phone, 30), code, disabled: !!v.disabled }) };
+    return { vendor: pubVendor_({ id: v.id, name, cat: v.cat, trades, contact: str_(v.contact, 30), phone: str_(v.phone, 30), code, disabled: !!v.disabled, pids }) };
   });
 }
 
@@ -295,7 +304,8 @@ function saveDefect_(q, u) {
     const projects = projects_(), vendors = vendors_();
     if (!projects.some(p => p.id === x.pid)) throw new Error('找不到這個建案');
     if (CATS.indexOf(x.cat) < 0) throw new Error('請選大分類');
-    if (x.vid && !vendors.some(v => v.id === x.vid)) throw new Error('找不到這個廠商');
+    const xv = x.vid ? vendors.find(v => v.id === x.vid) : null;
+    if (x.vid && !xv) throw new Error('找不到這個廠商');
     if (!okDate_(x.due)) throw new Error('改善期限不對');
     if (!okPhotos_(x.photos, 12)) throw new Error('照片太多或格式不對');
     if (!STATUS[x.status]) throw new Error('狀態不對');
@@ -305,6 +315,8 @@ function saveDefect_(q, u) {
       bldg: str_(x.bldg, 20), floor: str_(x.floor, 20), spot: str_(x.spot, 60),
       note: str_(x.note, 2000), req: str_(x.req, 2000), photos: x.photos, due: x.due, status: x.status,
     };
+    // 廠商不在這個建案（例如沒網路時開單，期間別人把他移出）→ 自動加回這個建案，不要讓整筆缺失被擋掉
+    const joinVendor = xv && (!hit || hit.d.vid !== x.vid) && xv.pids.indexOf(x.pid) < 0;
     const log = [], who = u.name, vName = id => { const v = vendors.find(z => z.id === id); return v ? v.name : '（未指定）'; };
     if (!d.note && !d.photos.length) throw new Error('請拍照或寫缺失說明');
     if (!hit) {
@@ -348,6 +360,7 @@ function saveDefect_(q, u) {
     }
     if (!log.length) return { v: oldV, defect: outD_(hit) };
     d.log = d.log.concat(log.map(m => ({ at: now_(), who, msg: m })));
+    if (joinVendor) sheet_('廠商').getRange(xv.row, 10).setValue(xv.pids.concat([x.pid]).join(','));
     const v = oldV + 1;
     writeDefect_(sheet_('缺失'), hit ? hit.row : 1e9, d, v, who, vendors);
     return { v, defect: Object.assign({}, d, { v, at: now_(), who }) };
