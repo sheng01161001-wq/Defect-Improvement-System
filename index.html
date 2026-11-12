@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v9';
+const VERSION = 'v10';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -385,7 +385,7 @@ function scheduleSync(ms) { clearTimeout(syncTimer); syncTimer = setTimeout(sync
 function syncNow() { if (syncErr) toast(syncErr); return sync(); }
 // 上傳給後端的欄位（v、at、who 是後端的）
 function payload(d) { const o = clone(d); delete o.v; delete o.at; delete o.who; return o; }
-const SERVER_KEYS = ['no', 'created', 'by', 'byUser', 'fixes', 'log', 'acked'];
+const SERVER_KEYS = ['no', 'created', 'by', 'byUser', 'fixes', 'log', 'acked', 'sent', 'ns'];
 async function sync() {
   if (!auth || syncing) return;
   if (pulling) { scheduleSync(1500); return; }
@@ -619,23 +619,39 @@ VIEWS.home = () => {
   if (!p) return `<div class="card"><h3>還沒有建案</h3><p class="muted">請到「首頁」選擇或新增建案。</p><button class="btn block" onclick="tab('start')">回首頁</button></div>`;
   // 各廠商還有幾件（未結案），多的排前面；點進去就是該廠商的清單
   const open = projDefects().filter(d => OPEN(d.status)), byV = {};
-  open.forEach(d => { const k = d.vid || ''; const x = byV[k] = byV[k] || { n: 0, late: 0, check: 0 }; x.n++; if (isLate(d)) x.late++; if (d.status === 'check') x.check++; });
+  open.forEach(d => { const k = d.vid || ''; const x = byV[k] = byV[k] || { n: 0, late: 0, check: 0, un: 0 }; x.n++; if (isLate(d)) x.late++; if (d.status === 'check') x.check++; if (needNotice(d)) x.un++; });
+  const unTotal = open.filter(d => d.vid && needNotice(d)).length;
   const vs = Object.entries(byV).sort((a, b) => b[1].n - a[1].n || b[1].late - a[1].late);
   return `<button class="btn block" style="margin:0 0 12px;padding:14px;font-size:17px" onclick="newDefect()">📷 新增缺失</button>
+    ${unTotal ? `<div class="card" style="background:#fff4e6"><b>🔔 有 ${unTotal} 筆還沒通知廠商</b><div class="muted">點下面的廠商，按「傳 PDF 給廠商」一次傳完。</div></div>` : ''}
     <div class="card"><h3>各廠商還有幾件（共 ${open.length} 件未結案）</h3>${vs.length ? vs.map(([vid, x]) => {
       const v = vendorOf(vid);
       return `<div class="user-row" onclick="go({name:'list',vid:'${vid}',st:'open'})">
         <div class="grow"><b>${esc(v ? v.name : '未指定廠商')}</b> ${v ? catTag(v.cat) : ''}
-          <div class="muted">${x.late ? `<span class="red">逾期 ${x.late}</span>　` : ''}${x.check ? `待複查 ${x.check}` : ''}</div></div>
+          <div class="muted">${x.un && vid ? `<span style="color:#e8590c;font-weight:bold">🔔 ${x.un} 筆未通知</span>　` : ''}${x.late ? `<span class="red">逾期 ${x.late}</span>　` : ''}${x.check ? `待複查 ${x.check}` : ''}</div></div>
         <b style="font-size:18px;white-space:nowrap">還有 ${x.n} 件</b><span class="muted">›</span></div>`;
     }).join('') : '<div class="muted">目前沒有未結案的缺失 👍</div>'}</div>`;
 };
 function newDefect() { startDraft(null); go({ name: 'edit' }); }
+// 通知廠商的狀態（只看待改善／改善中）：none 未通知、stale 有更新未通知、sent 已通知
+function noticeOf(d) {
+  if (d.status !== 'wait' && d.status !== 'doing') return null;
+  if (isPending(d.id)) return d.sent ? 'stale' : 'none';
+  return d.ns || (d.sent ? 'sent' : 'none');
+}
+const needNotice = d => { const n = noticeOf(d); return n === 'none' || n === 'stale'; };
+function noticeTag(d) {
+  const n = noticeOf(d);
+  if (n === 'none') return '<span class="tag" style="background:#f08c00">未通知</span>';
+  if (n === 'stale') return '<span class="tag" style="background:#f08c00">有更新未通知</span>';
+  if (n === 'sent') return `<span class="tag" style="background:#e9ecef;color:#495057">已通知 ${md(String(d.sent.at).slice(0, 10))}</span>`;
+  return '';
+}
 function itemHTML(d) {
   return `<div class="item ${isLate(d) ? 'late' : ''}" id="it-${d.id}" onclick="go({name:'detail',id:'${d.id}'})">
     <div class="thumb">${d.photos && d.photos[0] ? imgTag(d.photos[0]) : '📝'}</div>
     <div class="grow"><div class="it-t">${noText(d)}　${esc(locText(d))}</div>
-    <div class="it-m">${catTag(d.cat)}${stTag(d)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}${esc(d.trade)}</div>
+    <div class="it-m">${catTag(d.cat)}${stTag(d)}${noticeTag(d)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}${esc(d.trade)}</div>
     <div class="it-m" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.note)}</div>
     <div class="it-m">${esc(vName(d.vid))}　${dueText(d)}</div></div></div>`;
 }
@@ -712,7 +728,8 @@ VIEWS.edit = () => {
   </div>
   ${view.id ? `<button class="btn block" onclick="saveDraft(false)">儲存修改</button>`
     : `<button class="btn block" onclick="saveDraft(false)">儲存缺失</button>
-       <button class="btn line block" onclick="saveDraft(true)">儲存並傳 LINE 給廠商</button>`}`;
+       <button class="btn line block" onclick="saveDraft(true)">儲存並傳 PDF 給廠商</button>
+       <div class="muted" style="text-align:center;margin-top:4px">也可以只按「儲存缺失」，收工前到總覽一次傳給廠商</div>`}`;
 };
 // 大家自己加的工項／常用語（雲端共用；沒網路先記著，有網路再上傳）
 function applyCustom(list, o) {
@@ -854,9 +871,64 @@ async function saveDraft(withLine) {
     sheet('<div class="empty">上傳中…</div>');
     const busy = () => outs.some(o => isPending(o.id));
     for (let i = 0; i < 20 && busy(); i++) { await sync(); if (busy()) await new Promise(r => setTimeout(r, 700)); if (syncErr) break; }
-    if (busy()) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，在缺失頁按「傳 LINE 給廠商」'); return; }
-    lineSheet(outs.map(o => o.id));
+    if (busy()) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，到總覽按「傳 PDF 給廠商」'); return; }
+    notifyStart(outs.map(o => ({ vid: o.vid, ids: [o.id] })));
   }
+}
+// ── 傳 PDF 給廠商（一家一份 PDF）→ 分享到 LINE → 記錄「已通知」 ─────
+let NQ = [];   // 要傳的：[{vid, ids, done}]
+function notifyStart(groups) { NQ = groups.filter(g => g.vid && g.ids.length).map(g => Object.assign({ done: false }, g)); notifySheet(); }
+function notifyVendor(vid) {
+  const ids = projDefects().filter(d => d.vid === vid && needNotice(d)).sort((a, b) => (a.no || 0) - (b.no || 0)).map(d => d.id);
+  if (!ids.length) { toast('這家廠商沒有未通知的缺失'); return; }
+  notifyStart([{ vid, ids }]);
+}
+function notifySheet() {
+  if (!NQ.length) { closeLayer(); return; }
+  if (NQ.length === 1 && !NQ[0].done) { notifyMake(0); return; }
+  sheet(`<h3>傳 PDF 給廠商</h3><div class="muted">一家一份，傳完回到這裡按下一家。</div>
+    ${NQ.map((g, i) => `<button class="btn ${g.done ? 'ghost' : 'line'} block" onclick="notifyMake(${i})">${g.done ? '✔ 已傳：' : '📄 傳給 '}${esc(vName(g.vid))}（${g.ids.length} 筆）</button>`).join('')}
+    <button class="btn ghost block" onclick="closeLayer()">${NQ.every(g => g.done) ? '完成' : '晚點再傳'}</button>`);
+}
+async function notifyMake(i) {
+  const g = NQ[i], v = vendorOf(g.vid);
+  if (g.ids.some(id => !state.defects[id] || !state.defects[id].v || isPending(id))) { toast('有缺失還沒上傳，上傳後再傳'); syncNow(); return; }
+  sheet(`<div class="empty">正在產生 ${esc(vName(g.vid))} 的 PDF（${g.ids.length} 筆）…<br><span class="muted">照片多的話要等十幾秒</span></div>`);
+  try {
+    const r = await api('exportFile', { kind: 'pdf', ids: g.ids, title: vName(g.vid), withData: true });
+    const bin = atob(r.data), u8 = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+    const file = new File([u8], r.name, { type: 'application/pdf' });
+    const ds = g.ids.map(id => state.defects[id]), p = curP();
+    const lines = [`【缺失改善通知】${p ? p.name : ''}`, `${vName(g.vid)} 您好，共 ${ds.length} 筆，請於期限內改善：`]
+      .concat(ds.map(d => `${noticeOf(d) === 'stale' ? '（更新）' : ''}${noText(d)} ${locText(d)}｜${String(d.note || '').split('\n')[0].slice(0, 20)}｜期限 ${md(d.due)}`));
+    if (v && v.code) lines.push('', '改善完成請點連結回傳照片 👇', vendorLink(v));
+    lastExport = { file, url: r.url, name: r.name, text: lines.join('\n'), ids: g.ids, qi: i };
+    const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    sheet(`<h3>📄 ${esc(vName(g.vid))} 的 PDF 做好了（${g.ids.length} 筆）</h3>
+      ${canFile ? `<button class="btn line block" onclick="notifyShare()">傳到 LINE（PDF 檔）</button><div class="muted">選 LINE → 選 ${esc(vName(g.vid))} 的聊天室。傳出去後會自動記錄「已通知」。</div>`
+        : `<button class="btn line block" onclick="lineExportLink()">傳 LINE（PDF 下載連結）</button>`}
+      <button class="btn ghost block" onclick="notifyDone()">我已經傳了，標記「已通知」</button>
+      <a class="btn ghost block" href="${esc(r.url)}" target="_blank" rel="noopener">先看 PDF</a>
+      <button class="btn ghost block" onclick="notifySheet()">先不要</button>`);
+  } catch (e) { toast(e.message); notifySheet(); }
+}
+async function notifyShare() {
+  try { await navigator.share({ files: [lastExport.file], text: lastExport.text }); }
+  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請用下載連結'); return; }
+  notifyDone();
+}
+async function notifyDone() {
+  const ex = lastExport;
+  try {
+    const r = await api('markSent', { ids: ex.ids });
+    r.defects.forEach(d => { if (!isPending(d.id)) state.defects[d.id] = d; });
+    persistNow();
+    if (NQ[ex.qi]) NQ[ex.qi].done = true;
+    toast('已記錄：已通知廠商');
+  } catch (e) { toast('沒記到「已通知」：' + e.message); }
+  render(true);
+  if (NQ.length > 1 && NQ.some(g => !g.done)) notifySheet(); else closeLayer();
 }
 // 傳 LINE 的按鈕（好幾家就一家一個按鈕，傳完一家回來按下一家）
 function lineSheet(ids) {
@@ -887,7 +959,8 @@ VIEWS.list = () => {
     <div class="row" style="margin-bottom:10px"><select style="flex:1" onchange="LF.vid=this.value==='*'?null:this.value;render()">
       <option value="*">全部廠商</option>${vs.map(id => `<option value="${id}" ${LF.vid === id ? 'selected' : ''}>${esc(vName(id))}</option>`).join('')}</select>
       <input type="search" style="flex:1" placeholder="🔍 搜尋" value="${esc(LF.q)}" onchange="LF.q=this.value;render()"></div>
-    ${LF.vid ? `<div class="row" style="margin-bottom:8px"><b class="grow">🏢 ${esc(vName(LF.vid))}</b><button class="btn ghost small" onclick="go({name:'vendor',id:'${LF.vid}'})">廠商頁／傳 LINE ›</button></div>` : ''}
+    ${LF.vid ? `<div class="row" style="margin-bottom:8px"><b class="grow">🏢 ${esc(vName(LF.vid))}</b><button class="btn ghost small" onclick="go({name:'vendor',id:'${LF.vid}'})">廠商頁 ›</button></div>
+      ${(() => { const un = projDefects().filter(d => d.vid === LF.vid && needNotice(d)).length; return un ? `<button class="btn line block" style="margin:0 0 10px" onclick="notifyVendor('${LF.vid}')">📄 傳 PDF 給廠商（未通知 ${un} 筆）</button>` : ''; })()}` : ''}
     <div class="row" style="margin-bottom:6px"><span class="muted grow">共 ${ds.length} 件</span>${ds.length ? `<button class="btn ghost small" onclick="exportShare('pdf',${esc(JSON.stringify(ds.slice(0, 40).map(d => d.id)))},${jsq(LF.vid ? vName(LF.vid) : (p ? p.name : ''))})">📄 PDF</button> <button class="btn ghost small" onclick="exportShare('xlsx',${esc(JSON.stringify(ds.slice(0, 40).map(d => d.id)))},${jsq(LF.vid ? vName(LF.vid) : (p ? p.name : ''))})">📊 Excel</button>` : ''}</div>
     ${ds.length ? ds.map(itemHTML).join('') : '<div class="empty">沒有符合的缺失</div>'}`;
 };
@@ -933,11 +1006,13 @@ VIEWS.detail = () => {
       ${d.req ? `<tr><th>改善要求</th><td style="white-space:pre-wrap">${esc(d.req)}</td></tr>` : ''}
       <tr><th>改善期限</th><td>${dueText(d, true)}</td></tr>
       <tr><th>開單</th><td>${esc(d.by || '')} ${esc(d.created || '')}</td></tr>
+      ${noticeOf(d) ? `<tr><th>通知廠商</th><td>${noticeOf(d) === 'sent' ? `✔ 已傳 PDF ${esc(d.sent.at)}（${esc(d.sent.by)}）` : noticeOf(d) === 'stale' ? `<span style="color:#e8590c;font-weight:bold">內容有更新，還沒通知</span><div class="muted">上次傳：${esc(d.sent.at)}</div>` : '<span style="color:#e8590c;font-weight:bold">還沒通知廠商</span>'}</td></tr>` : ''}
     </table></div>
   ${groupHTML(d)}
   ${subs.map(s => s.html).join('')}
   <div class="card">
-    ${d.vid ? `<button class="btn line block" onclick="sendLine('${d.id}')">傳 LINE 給廠商</button>` : ''}
+    ${d.vid && OPEN(d.status) ? `<button class="btn line block" onclick="notifyStart([{vid:'${d.vid}',ids:['${d.id}']}])">📄 傳 PDF 給廠商${noticeOf(d) === 'sent' ? '（再傳一次）' : ''}</button>` : ''}
+    ${d.vid ? `<button class="btn ghost block" onclick="sendLine('${d.id}')">傳文字訊息＋回報連結</button>` : ''}
     <div class="row" style="margin-top:8px">
       <button class="btn ghost grow" onclick="exportShare('pdf',['${d.id}'],${jsq(vName(d.vid))})">📄 PDF</button>
       ${d.vid ? `<button class="btn ghost grow" onclick="copyMsg('${d.id}')">📋 複製訊息</button>` : ''}
@@ -1120,6 +1195,7 @@ VIEWS.vendor = () => {
       <button class="btn ghost block" onclick="copyText(vendorLink(vendorOf('${v.id}')))">📋 複製連結</button>` : '<div class="muted">上傳後才有連結</div>'}
       ${isAdmin() && v.code ? `<button class="btn ghost block" onclick="resetCode('${v.id}')">換新連結（舊的會失效）</button>` : ''}</div>
     <div class="card"><h3>${esc(p ? p.name : '')}：未結案 ${open.length} 件</h3>
+      ${(() => { const un = open.filter(needNotice).length; return un ? `<button class="btn line block" style="margin-bottom:8px" onclick="notifyVendor('${v.id}')">📄 傳 PDF 給廠商（未通知 ${un} 筆）</button>` : ''; })()}
       ${open.length ? `<div class="row" style="margin-bottom:10px"><button class="btn ghost grow" onclick="exportShare('pdf',${esc(JSON.stringify(open.map(d => d.id)))},${jsq(v.name)})">📄 PDF 通知單</button><button class="btn ghost grow" onclick="exportShare('xlsx',${esc(JSON.stringify(open.map(d => d.id)))},${jsq(v.name)})">📊 Excel 清單</button></div>` : ''}
       ${open.map(itemHTML).join('') || '<div class="muted">沒有未結案的缺失</div>'}
       ${ds.length > open.length ? `<button class="btn ghost block" onclick="go({name:'list',vid:'${v.id}',st:'done'})">看已結案（${ds.length - open.length} 件）</button>` : ''}</div>`;

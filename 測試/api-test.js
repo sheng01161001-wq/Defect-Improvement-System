@@ -214,5 +214,21 @@ ok(VX.url && !VX.data, '廠商拿到連結');
 badCall({ action: 'vendorExport', code: V2.code, kind: 'pdf', ids: ['nope'] }, '廠商匯出別人的單');
 okCall({ action: 'vendorExport', code: V2.code, kind: 'xlsx', ids: ['exp0001'] }, '廠商匯出 Excel');
 
+// 已通知廠商／有更新未通知
+let N1 = okCall({ action: 'saveDefect', token: S3.token, defect: Object.assign({}, D, { id: 'snt0001', photos: [], vid: 'ven002' }), baseV: 0 }, '開通知測試單');
+ok(N1.defect.ns === 'none', '新單是未通知');
+let M1 = okCall({ action: 'markSent', token: S3.token, ids: ['snt0001'] }, '記錄已傳');
+ok(M1.defects[0].ns === 'sent' && M1.defects[0].sent.by === '王後台' && M1.defects[0].log.slice(-1)[0].msg === '已傳 PDF 給廠商', '變成已通知');
+let nd = cp(M1.defects[0]); nd.note = '改了說明';
+let N2 = okCall({ action: 'saveDefect', token: S3.token, defect: nd, baseV: M1.defects[0].v }, '傳過後改說明');
+ok(N2.defect.ns === 'stale' && N2.defect.sent, '改內容後變成有更新未通知');
+let M2 = okCall({ action: 'markSent', token: S3.token, ids: ['snt0001'] }, '再傳一次');
+ok(M2.defects[0].ns === 'sent' && M2.defects[0].log.slice(-1)[0].msg === '已傳更新的 PDF 給廠商', '再傳後又是已通知');
+okCall({ action: 'vendorAck', code: V2.code, id: 'snt0001' }, '廠商按收到');
+ok(okCall({ action: 'list', token: S3.token }, '讀').defects.find(z => z.id === 'snt0001').ns === 'sent', '廠商按收到不影響通知狀態');
+nd = cp(okCall({ action: 'list', token: S3.token }, '讀').defects.find(z => z.id === 'snt0001')); nd.sent = null;
+ok(okCall({ action: 'saveDefect', token: S3.token, defect: Object.assign(nd, { note: '再改' }), baseV: nd.v }, '前端想清掉通知紀錄').defect.sent, '通知紀錄只有後端能改');
+badCall({ action: 'markSent', ids: ['snt0001'] }, '沒登入記錄已傳');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

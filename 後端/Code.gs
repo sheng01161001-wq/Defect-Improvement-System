@@ -51,7 +51,7 @@ function doPost(e) {
 // 廠商用的（不用登入，靠回報碼）
 const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, vendorExport: vendorExport_,
   vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_ };
-const USER_ = { me: me_, list: list_, exportFile: exportFile_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, saveCustom: saveCustom_,
+const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
 const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_ };
 
@@ -296,7 +296,12 @@ function writeDefect_(sh, row, d, v, who, vendors, at) {
   const loc = [d.bldg, d.floor, d.spot].filter(String).join(' ');
   writeRow_(sh, row, [d.id, d.pid, d.no, STATUS[d.status], d.cat, txt_(d.trade), txt_(vd ? vd.name : ''), txt_(loc), txt_(d.due), v, txt_(at || now_()), who], d);
 }
-const outD_ = h => Object.assign({}, h.d, { v: h.v, at: h.at, who: h.who });
+// ns：通知廠商的狀態 none 還沒傳／sent 已傳／stale 傳過後內容有改（要再傳）
+const outD_ = h => Object.assign({}, h.d, { v: h.v, at: h.at, who: h.who, ns: !h.d.sent ? 'none' : h.d.sent.sig === sigOf_(h.d) ? 'sent' : 'stale' });
+// 會影響「廠商要知道」的內容：改了就要再通知
+const sigOf_ = d => Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, canon_({
+  vid: d.vid, cat: d.cat, trade: d.trade, bldg: d.bldg, floor: d.floor, spot: d.spot, note: d.note, req: d.req,
+  photos: d.photos, due: d.due, rej: (d.reviews || []).filter(r => !r.ok).length }), Utilities.Charset.UTF_8)).slice(0, 16);
 
 function list_() {
   return {
@@ -387,7 +392,7 @@ function saveDefect_(q, u) {
       const nos = all.filter(h => h.d.pid === d.pid).map(h => Number(h.d.no) || 0);
       d.no = (nos.length ? Math.max.apply(null, nos) : 0) + 1;
       d.created = now_(); d.by = who; d.byUser = u.user; d.fixes = []; d.reviews = []; d.log = [];
-      log.push('開單' + (d.vid ? '，通知 ' + vName(d.vid) : ''));
+      log.push('開單' + (d.vid ? '，負責廠商 ' + vName(d.vid) : ''));
     } else {
       const o = hit.d;
       if (o.pid !== d.pid) throw new Error('缺失不能換建案');
@@ -397,7 +402,7 @@ function saveDefect_(q, u) {
       if (reviews.length < ors.length || ors.some((r, i) => revKey_(r) !== revKey_(reviews[i]))) throw new Error('複查紀錄不能修改');
       const added = reviews.slice(ors.length);
       if (added.length > 1) throw new Error('一次只能複查一次');
-      d.no = o.no; d.created = o.created; d.by = o.by; d.byUser = o.byUser; d.fixes = o.fixes || []; d.acked = o.acked;
+      d.no = o.no; d.created = o.created; d.by = o.by; d.byUser = o.byUser; d.fixes = o.fixes || []; d.acked = o.acked; d.sent = o.sent;
       d.reviews = ors.slice(); d.log = o.log || [];
       if (added.length) {
         const r = added[0];
@@ -426,7 +431,7 @@ function saveDefect_(q, u) {
     if (joinVendor) sheet_('廠商').getRange(xv.row, 10).setValue(xv.pids.concat([x.pid]).join(','));
     const v = oldV + 1;
     writeDefect_(sheet_('缺失'), hit ? hit.row : 1e9, d, v, who, vendors);
-    return { v, defect: Object.assign({}, d, { v, at: now_(), who }) };
+    return { v, defect: outD_({ d, v, at: now_(), who }) };
   });
 }
 // 刪除：後台隨時可刪；開單的人在廠商還沒回報前可刪
@@ -635,4 +640,21 @@ function xlsxBlob_(hs, pn, vn, name) {
     f('xl/worksheets/sheet1.xml', x),
   ];
   return Utilities.zip(files, name).setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+// 記錄「已傳 PDF 給廠商」（工地人員按分享後呼叫）
+function markSent_(q, u) {
+  return withLock_(() => {
+    const want = {};
+    (q.ids || []).slice(0, 40).forEach(id => { want[id] = 1; });
+    const sh = sheet_('缺失'), vendors = vendors_(), out = [];
+    defectRows_().filter(h => want[h.id]).forEach(h => {
+      const d = h.d, again = !!d.sent, v = h.v + 1;
+      d.sent = { at: now_(), by: u.name, sig: sigOf_(d) };
+      d.log = (d.log || []).concat([{ at: now_(), who: u.name, msg: again ? '已傳更新的 PDF 給廠商' : '已傳 PDF 給廠商' }]);
+      writeDefect_(sh, h.row, d, v, u.name, vendors);
+      out.push(outD_({ d, v, at: now_(), who: u.name }));
+    });
+    return { defects: out };
+  });
 }
