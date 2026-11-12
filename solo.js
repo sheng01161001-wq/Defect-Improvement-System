@@ -265,20 +265,22 @@
       y += h;
     };
     for (const h of hs) {
-      const d = h.d, v = vn[d.vid], fix = (d.fixes || []).slice(-1)[0], rvs = d.reviews || [];
-      const back = rvs.filter(r => !r.ok).slice(-1)[0], okRv = rvs.filter(r => r.ok).slice(-1)[0], last = rvs.slice(-1)[0];
+      const d = h.d, v = vn[d.vid], rvs = d.reviews || [];
+      const back = rvs.filter(r => !r.ok).slice(-1)[0], last = rvs.slice(-1)[0];
       newPage();
-      font(46, true); ctx.textAlign = 'center'; ctx.fillText('缺 失 改 善 通 知 單', W / 2, y); y += 70;
-      font(26); ctx.fillText((pn[d.pid] || '') + '　　編號：No. ' + String(d.no).padStart(4, '0') + '　　狀態：' + STATUS[d.status], W / 2, y); y += 56;
+      // 案名放最上面當抬頭（大字），下面才是表單名稱
+      font(58, true); ctx.textAlign = 'center'; ctx.fillText(pn[d.pid] || '', W / 2, y); y += 78;
+      ctx.fillRect(M, y, TW, 4); y += 22;
+      font(40, true); ctx.fillText('缺 失 改 善 通 知 單', W / 2, y); y += 60;
+      font(26); ctx.fillText('編號：No. ' + String(d.no).padStart(4, '0') + '　　狀態：' + STATUS[d.status], W / 2, y); y += 52;
       ctx.textAlign = 'left';
       row(['受通知廠商', v ? v.name : '', '發單日期', roc(String(d.created || '').slice(0, 10))]);
-      row(['缺失分類', d.cat + (d.trade ? '／' + d.trade : ''), '改善期限', roc(d.due)]);
+      row(['工項', d.trade || d.cat, '改善期限', roc(d.due)]);
       row(['位置', [d.bldg, d.floor, d.spot].filter(String).join(' ')]);
       row(['缺失說明', d.note || '']);
       row(['改善要求', d.req || '請依規範改善，完成後通知工地複查，合格始得結案。']);
       if (back) row(['複查不合格', back.note + '（' + String(back.at || '').slice(0, 10) + '）']);
       await photoRow('缺失照片', d.photos);
-      await photoRow('改善後照片', fix ? fix.photos : okRv ? okRv.photos : [], fix ? fix.note : '');
       y += 16;
       // 簽名欄
       ensure(160);
