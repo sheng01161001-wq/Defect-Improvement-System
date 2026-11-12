@@ -132,9 +132,10 @@ textarea{min-height:70px;resize:vertical}
 <div id="layer"></div>
 
 <script src="data.js"></script>
+<script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v16';
+const VERSION = 'v17';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -427,6 +428,24 @@ function syncNow() { if (syncErr) toast(syncErr); return sync(); }
 // 上傳給後端的欄位（v、at、who 是後端的）
 function payload(d) { const o = clone(d); delete o.v; delete o.at; delete o.who; return o; }
 const SERVER_KEYS = ['no', 'created', 'by', 'byUser', 'fixes', 'log', 'acked', 'sent', 'ns'];
+// 同時跑 k 個；全部跑完才結束，有網路錯誤就丟出第一個
+async function pool(items, k, fn) {
+  let i = 0;
+  const rs = await Promise.allSettled(Array.from({ length: Math.min(k, items.length) }, async () => { while (i < items.length) await fn(items[i++]); }));
+  const bad = rs.find(r => r.status === 'rejected');
+  if (bad) throw bad.reason;
+}
+let syncRuns = 0;
+// 等這幾筆缺失傳上去（拿到編號）；照片可以晚點傳
+async function waitUploaded(ids, ms) {
+  const busy = () => ids.some(isPending), t0 = Date.now(), run0 = syncRuns;
+  while (busy() && Date.now() - t0 < (ms || 30000)) {
+    if (!syncing) sync();
+    await new Promise(r => setTimeout(r, 250));
+    if (syncErr && !syncing && syncRuns > run0) break;
+  }
+  return !busy();
+}
 async function sync() {
   if (!auth || syncing) return;
   if (pulling) { scheduleSync(1500); return; }
@@ -436,11 +455,6 @@ async function sync() {
   const skipBad = async fn => { try { return await fn(); } catch (e) { if (!(e instanceof ServerError)) throw e; toast(e.message); return null; } };
   let needPull = false;
   try {
-    while (outbox.ph.length) {
-      const id = outbox.ph[0], data = await photoGet(id);
-      if (data) await skipBad(() => api('uploadPhoto', { id, data }));
-      outbox.ph.shift(); await persistNow();
-    }
     while (outbox.cu.length) {
       await skipBad(() => api('saveCustom', outbox.cu[0]));
       outbox.cu.shift(); await persistNow();
@@ -450,9 +464,11 @@ async function sync() {
       await skipBad(() => api('deleteDefect', { id: outbox.del[0] }));
       outbox.del.shift(); await persistNow();
     }
-    for (const [id, n] of Object.entries(outbox.d)) {
-      const d = state.defects[id];
-      if (!d) { delete outbox.d[id]; continue; }
+    // 缺失先傳：雲端後端每次來回約 2 秒，3 筆一起傳
+    const sendDefects = () => pool(Object.keys(outbox.d), 3, async id => {
+      const n = outbox.d[id], d = state.defects[id];
+      if (n === undefined) return;
+      if (!d) { delete outbox.d[id]; return; }
       const r = await skipBad(() => api('saveDefect', { defect: payload(d), baseV: d.v || 0 }));
       if (!r) { delete outbox.d[id]; needPull = true; }
       else if (r.conflict) { state.defects[id] = r.defect; delete outbox.d[id]; toast(r.err + '，請再確認一次'); }
@@ -466,10 +482,19 @@ async function sync() {
         cur.reviews = r.defect.reviews.concat((cur.reviews || []).slice(r.defect.reviews.length));
       }
       await persistNow();
+    });
+    await sendDefects();
+    render(true);   // 「未上傳」先消掉，照片在背景繼續傳
+    // 照片後傳，3 張一起；中間又存了新缺失就先傳缺失
+    while (outbox.ph.length) {
+      if (Object.keys(outbox.d).length) { await sendDefects(); render(true); }
+      const batch = outbox.ph.slice(0, 3);
+      await pool(batch, 3, async id => { const data = await photoGet(id); if (data) await skipBad(() => api('uploadPhoto', { id, data })); });
+      outbox.ph = outbox.ph.filter(id => !batch.includes(id)); await persistNow();
     }
     syncErr = '';
   } catch (e) { syncErr = e.message; }
-  syncing = false;
+  syncing = false; syncRuns++;
   setSyncUI(); render(true);
   if (pendingCount()) scheduleSync(syncErr ? 20000 : 300);
   else if (needPull || pullAgain) { pullAgain = false; pull(true); }
@@ -968,10 +993,8 @@ async function saveDraft(withLine) {
   toast(isNew ? (outs.length > 1 ? `已存檔，派給 ${outs.length} 家廠商` : '已存檔') : '已修改');
   if (withLine) {
     // 先上傳，廠商點連結才看得到；上傳完跳出按鈕（手機瀏覽器要「按一下」才能開 LINE）
-    sheet('<div class="empty">上傳中…</div>');
-    const busy = () => outs.some(o => isPending(o.id));
-    for (let i = 0; i < 20 && busy(); i++) { await sync(); if (busy()) await new Promise(r => setTimeout(r, 700)); if (syncErr) break; }
-    if (busy()) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，到總覽按「傳 PDF 給廠商」'); return; }
+    sheet('<div class="empty">存檔中…</div>');
+    if (!await waitUploaded(outs.map(o => o.id))) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，到總覽按「傳 PDF 給廠商」'); return; }
     notifyStart(outs.map(o => ({ vid: o.vid, ids: [o.id] })));
   }
 }
@@ -990,15 +1013,31 @@ function notifySheet() {
     ${NQ.map((g, i) => `<button class="btn ${g.done ? 'ghost' : 'line'} block" onclick="notifyMake(${i})">${g.done ? '✔ 已傳：' : '📄 傳給 '}${esc(vName(g.vid))}（${g.ids.length} 筆）</button>`).join('')}
     <button class="btn ghost block" onclick="closeLayer()">${NQ.every(g => g.done) ? '完成' : '晚點再傳'}</button>`);
 }
+// PDF 在手機上畫（pdf.js）；手機裡沒有的照片才跟雲端拿
+async function localPdf(ids, title) {
+  const ds = ids.map(id => state.defects[id]).filter(Boolean).sort((a, b) => (a.pid + String(a.no).padStart(6, '0')).localeCompare(b.pid + String(b.no).padStart(6, '0')));
+  if (!ds.length) throw new Error('沒有可以匯出的缺失');
+  if (ds.length > 40) throw new Error('一次最多 40 筆，請先篩選');
+  const all = [...new Set(ds.flatMap(d => (d.photos || []).slice(0, 6)))], miss = [];
+  for (const id of all) if (!await photoGet(id)) miss.push(id);
+  let lost = 0;
+  for (let k = 0; k < miss.length; k += 8) {
+    const ids = miss.slice(k, k + 8);
+    try { const r = await api('getPhotos', { ids }); for (const [id, data] of Object.entries(r.photos)) await photoPut(id, data); lost += ids.filter(id => !r.photos[id]).length; }
+    catch (e) { lost += miss.length - k; break; }
+  }
+  if (lost) toast(`有 ${lost} 張照片沒抓到（網路不穩？），PDF 裡會少這幾張`);
+  const bytes = await NoticePdf.make(ds, { projectName: id => (state.projects.find(p => p.id === id) || {}).name || '', vendorName: id => (vendorOf(id) || {}).name || '', photo: photoGet });
+  const t = new Date(), stamp = ymd(t).replace(/-/g, '') + '-' + String(t.getHours()).padStart(2, '0') + String(t.getMinutes()).padStart(2, '0');
+  const name = '缺失改善通知單_' + String(title || '').replace(/[\\/:*?"<>|]/g, '').slice(0, 20) + '_' + stamp + '.pdf';
+  return new File([bytes], name, { type: 'application/pdf' });
+}
 async function notifyMake(i) {
   const g = NQ[i], v = vendorOf(g.vid);
   if (g.ids.some(id => !state.defects[id] || !state.defects[id].v || isPending(id))) { toast('有缺失還沒上傳，上傳後再傳'); syncNow(); return; }
-  sheet(`<div class="empty">正在產生 ${esc(vName(g.vid))} 的 PDF（${g.ids.length} 筆）…<br><span class="muted">照片多的話要等十幾秒</span></div>`);
+  sheet(`<div class="empty">正在產生 ${esc(vName(g.vid))} 的 PDF（${g.ids.length} 筆）…</div>`);
   try {
-    const r = await api('exportFile', { kind: 'pdf', ids: g.ids, title: vName(g.vid), withData: true });
-    const bin = atob(r.data), u8 = new Uint8Array(bin.length);
-    for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
-    const file = new File([u8], r.name, { type: 'application/pdf' });
+    const file = await localPdf(g.ids, vName(g.vid)), r = { name: file.name };
     const ds = g.ids.map(id => state.defects[id]), p = curP();
     const lines = [`【缺失改善通知】${p ? p.name : ''}`, `${vName(g.vid)} 您好，共 ${ds.length} 筆，請於期限內改善：`]
       .concat(ds.map(d => `${noticeOf(d) === 'stale' ? '（更新）' : ''}${noText(d)} ${locText(d)}｜${String(d.note || '').split('\n')[0].slice(0, 20)}｜期限 ${md(d.due)}`));
@@ -1018,17 +1057,21 @@ async function notifyShare() {
   catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請按「先看／存 PDF」存下來再傳'); return; }
   notifyDone();
 }
-async function notifyDone() {
-  const ex = lastExport;
-  try {
-    const r = await api('markSent', { ids: ex.ids });
-    r.defects.forEach(d => { if (!isPending(d.id)) state.defects[d.id] = d; });
-    persistNow();
-    if (NQ[ex.qi]) NQ[ex.qi].done = true;
-    toast('已記錄：已通知廠商');
-  } catch (e) { toast('沒記到「已通知」：' + e.message); }
+function notifyDone() {
+  const ex = lastExport, at = new Date();
+  // 畫面先標「已通知」，不用等雲端（約 2 秒）
+  ex.ids.forEach(id => { const d = state.defects[id]; if (d) { d.sent = { at: ymd(at) + ' ' + at.toTimeString().slice(0, 5), by: auth.me.name }; d.ns = 'sent'; } });
+  if (NQ[ex.qi]) NQ[ex.qi].done = true;
+  toast('已記錄：已通知廠商');
   render(true);
   if (NQ.length > 1 && NQ.some(g => !g.done)) notifySheet(); else closeLayer();
+  api('markSent', { ids: ex.ids })
+    .then(r => {
+      r.defects.forEach(d => { if (!isPending(d.id)) state.defects[d.id] = d; });
+      if (pulling) pullAgain = true;   // 同時在讀的資料可能是記之前的，讀完再讀一次
+      persistNow(); render(true);
+    })
+    .catch(e => { toast('沒記到「已通知」，請再按一次：' + e.message); pull(true); });
 }
 // 傳 LINE 的按鈕（好幾家就一家一個按鈕，傳完一家回來按下一家）
 function lineSheet(ids) {
@@ -1202,14 +1245,17 @@ async function exportShare(kind, ids, title) {
   const pend = ids.filter(id => !state.defects[id] || !state.defects[id].v || isPending(id));
   if (pend.length) { toast('有缺失還沒上傳，上傳後再匯出'); syncNow(); return; }
   if (ids.length > 40) { toast('一次最多 40 筆，請先篩選'); return; }
-  sheet(`<div class="empty">正在產生 ${kind === 'pdf' ? 'PDF' : 'Excel'}（${ids.length} 筆）…<br><span class="muted">照片多的話要等十幾秒</span></div>`);
+  sheet(`<div class="empty">正在產生 ${kind === 'pdf' ? 'PDF' : 'Excel'}（${ids.length} 筆）…</div>`);
   try {
-    const r = await api('exportFile', { kind, ids, title, withData: true });
-    const bin = atob(r.data), u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    const type = kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    const file = new File([u8], r.name, { type });
-    const v = ids.length && state.defects[ids[0]] ? vendorOf(state.defects[ids[0]].vid) : null;
+    let file;
+    if (kind === 'pdf') file = await localPdf(ids, title);
+    else {
+      const r = await api('exportFile', { kind, ids, title, withData: true });
+      const bin = atob(r.data), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      file = new File([u8], r.name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+    const r = { name: file.name };
     const lines = [`【缺失改善${kind === 'pdf' ? '通知單' : '清單'}】${title || ''}`, `共 ${ids.length} 筆，請查收`];
     lastExport = { file, url: URL.createObjectURL(file), name: r.name, text: lines.join('\n') };
     const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
