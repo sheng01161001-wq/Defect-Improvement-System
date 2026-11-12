@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v14';
+const VERSION = 'v15';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -1002,19 +1002,19 @@ async function notifyMake(i) {
     const lines = [`【缺失改善通知】${p ? p.name : ''}`, `${vName(g.vid)} 您好，共 ${ds.length} 筆，請於期限內改善：`]
       .concat(ds.map(d => `${noticeOf(d) === 'stale' ? '（更新）' : ''}${noText(d)} ${locText(d)}｜${String(d.note || '').split('\n')[0].slice(0, 20)}｜期限 ${md(d.due)}`));
     lines.push('', '改善完成請通知工地複查，謝謝。');
-    lastExport = { file, url: r.url, name: r.name, text: lines.join('\n'), ids: g.ids, qi: i };
+    lastExport = { file, url: URL.createObjectURL(file), name: r.name, text: lines.join('\n'), ids: g.ids, qi: i };
     const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
     sheet(`<h3>📄 ${esc(vName(g.vid))} 的 PDF 做好了（${g.ids.length} 筆）</h3>
       ${canFile ? `<button class="btn line block" onclick="notifyShare()">傳到 LINE（PDF 檔）</button><div class="muted">選 LINE → 選 ${esc(vName(g.vid))} 的聊天室。傳出去後會自動記錄「已通知」。</div>`
-        : SOLO ? `<a class="btn line block" href="${esc(r.url)}" download="${esc(r.name)}">下載 PDF（再自己傳給廠商）</a>` : `<button class="btn line block" onclick="lineExportLink()">傳 LINE（PDF 下載連結）</button>`}
+        : `<a class="btn line block" href="${lastExport.url}" download="${esc(r.name)}">下載 PDF 檔（再自己傳給廠商）</a><div class="muted">這台裝置不能直接分享檔案（電腦、或在 LINE 裡打開 App 時會這樣），請下載後在 LINE 用「檔案」傳。</div>`}
       <button class="btn ghost block" onclick="notifyDone()">我已經傳了，標記「已通知」</button>
-      <a class="btn ghost block" href="${esc(r.url)}" ${SOLO ? `download="${esc(r.name)}"` : 'target="_blank" rel="noopener"'}>先看 PDF</a>
+      ${canFile ? `<a class="btn ghost block" href="${lastExport.url}" download="${esc(r.name)}">先看／存 PDF</a>` : ''}
       <button class="btn ghost block" onclick="notifySheet()">先不要</button>`);
   } catch (e) { toast(e.message); notifySheet(); }
 }
 async function notifyShare() {
   try { await navigator.share({ files: [lastExport.file], text: lastExport.text }); }
-  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請用下載連結'); return; }
+  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請按「先看／存 PDF」存下來再傳'); return; }
   notifyDone();
 }
 async function notifyDone() {
@@ -1195,7 +1195,7 @@ async function copyText(t) {
 }
 function copyMsg(id) { const d = checkSendable(id); if (d) copyText(lineMsg(d)); }
 
-// ── PDF／Excel：後端產生 → 直接分享檔案到 LINE，或傳下載連結 ─────
+// ── PDF／Excel：產生檔案 → 直接分享檔案到 LINE，或下載（不傳網頁連結）─────
 let lastExport = null;
 async function exportShare(kind, ids, title) {
   const pend = ids.filter(id => !state.defects[id] || !state.defects[id].v || isPending(id));
@@ -1210,22 +1210,18 @@ async function exportShare(kind, ids, title) {
     const file = new File([u8], r.name, { type });
     const v = ids.length && state.defects[ids[0]] ? vendorOf(state.defects[ids[0]].vid) : null;
     const lines = [`【缺失改善${kind === 'pdf' ? '通知單' : '清單'}】${title || ''}`, `共 ${ids.length} 筆，請查收`];
-    lastExport = { file, url: r.url, name: r.name, text: lines.join('\n') };
+    lastExport = { file, url: URL.createObjectURL(file), name: r.name, text: lines.join('\n') };
     const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
     sheet(`<h3>${kind === 'pdf' ? '📄 PDF' : '📊 Excel'} 做好了</h3><div class="muted" style="word-break:break-all">${esc(r.name)}</div>
       ${canFile ? '<button class="btn line block" onclick="shareFile()">傳到 LINE（附檔案）</button><div class="muted">按了會跳出分享，選 LINE → 選廠商的聊天室。</div>' : ''}
-      ${SOLO ? `<a class="btn ${canFile ? 'ghost' : ''} block" href="${esc(r.url)}" download="${esc(r.name)}">下載／列印</a>`
-        : `<button class="btn ${canFile ? 'ghost' : 'line'} block" onclick="lineExportLink()">傳 LINE：檔案下載連結</button>
-      <a class="btn ghost block" href="${esc(r.url)}" target="_blank" rel="noopener">開啟／下載／列印</a>
-      <button class="btn ghost block" onclick="copyText(lastExport.url)">📋 複製下載連結</button>`}
+      <a class="btn ${canFile ? 'ghost' : ''} block" href="${lastExport.url}" download="${esc(r.name)}">下載／列印</a>
       <button class="btn ghost block" onclick="closeLayer()">關閉</button>
-      ${SOLO ? '' : '<div class="muted" style="margin-top:6px">下載連結 7 天內有效。</div>'}`);
+`);
   } catch (e) { closeLayer(); toast(e.message); }
 }
-function lineExportLink() { openLine(lastExport.text + '\n\n📎 ' + lastExport.name + '\n' + lastExport.url); }
 async function shareFile() {
   try { await navigator.share({ files: [lastExport.file], text: lastExport.text }); }
-  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請用「傳 LINE：檔案下載連結」'); }
+  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請按「下載／列印」存下來再傳'); }
 }
 
 // ── 通知單（列印／存 PDF）─────────────────────
