@@ -135,7 +135,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v17';
+const VERSION = 'v18';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -220,6 +220,10 @@ async function idbClear(store) {
     t.oncomplete = () => res(n); t.onerror = () => rej(t.error);
   });
 }
+async function idbKeys(store) {
+  const d = await db();
+  return new Promise(res => { const r = d.transaction(store).objectStore(store).getAllKeys(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+}
 async function idbGet(store, key) {
   const d = await db();
   return new Promise(res => { const r = d.transaction(store).objectStore(store).get(key); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
@@ -291,11 +295,24 @@ async function addPhotos(input, key) {
 function viewPhoto(id, onDraw) {
   const L = $('layer');
   L.innerHTML = `<div class="viewer" onclick="if(event.target===this||event.target.tagName==='IMG')closeLayer()">${imgTag(id)}
-    <div class="vb">${onDraw ? '<button class="btn line" id="drawBtn">✏️ 畫圈標示</button>' : ''}<button class="btn ghost" onclick="closeLayer()">關閉</button></div></div>`;
+    <div class="vb">${onDraw ? '<button class="btn line" id="drawBtn">✏️ 畫圈標示</button>' : ''}<button class="btn ghost" onclick="savePhoto('${esc(id)}')">⬇ 存到手機</button><button class="btn ghost" onclick="closeLayer()">關閉</button></div></div>`;
   hydratePhotos(L); armHistory();
   if (onDraw) $('drawBtn').onclick = () => annotate(id, onDraw);
 }
 function closeLayer() { $('layer').innerHTML = ''; armHistory(); }
+// 需要的時候才把照片存到手機（手機能分享就用分享，iPhone 選「儲存影像」；不能就下載）
+async function savePhoto(id) {
+  const data = await photoGet(id);
+  if (!data) { toast('照片還沒載入，等一下再按'); return; }
+  const blob = await (await fetch(data)).blob(), name = '缺失照片_' + ymd(new Date()).replace(/-/g, '') + '_' + id.slice(-5) + '.jpg';
+  const file = new File([blob], name, { type: 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); } catch (e) { if (e.name !== 'AbortError') toast(e.message); }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
 // 在照片上畫圈：畫好存成一張新照片
 async function annotate(id, done) {
   const data = await photoGet(id);
@@ -499,6 +516,21 @@ async function sync() {
   if (pendingCount()) scheduleSync(syncErr ? 20000 : 300);
   else if (needPull || pullAgain) { pullAgain = false; pull(true); }
 }
+// 公司版：照片傳上雲端後，手機只留「還沒通知廠商」或 1 天內開的單要用的（做 PDF 快）；其他刪掉，要看時再從雲端抓。
+// 單機版照片只存在手機，不能刪。
+let lastClean = 0;
+async function cleanPhotos() {
+  if (SOLO || !auth || pendingCount() || Date.now() - lastClean < 10 * 60e3) return;
+  lastClean = Date.now();
+  const keep = new Set(), since = ymd(new Date(Date.now() - 864e5));
+  Object.values(state.defects).forEach(d => {
+    if (OPEN(d.status) && (needNotice(d) || String(d.created || '').slice(0, 10) >= since)) (d.photos || []).forEach(id => keep.add(id));
+  });
+  try { (JSON.parse(localStorage.getItem('dfi_draft') || 'null') || { photos: [] }).photos.forEach(id => keep.add(id)); } catch (e) {}
+  if (draft) (draft.photos || []).forEach(id => keep.add(id));
+  if (rv) (rv.photos || []).forEach(id => keep.add(id));
+  for (const id of await idbKeys('photos')) if (!keep.has(id)) { delete photoCache[id]; await idbDel('photos', id); }
+}
 // 從雲端拿最新資料（還沒上傳的修改蓋在上面）
 async function pull(quiet) {
   if (!auth) return;
@@ -520,6 +552,7 @@ async function pull(quiet) {
   pulling = false;
   render(true);
   if (pullAgain) { pullAgain = false; setTimeout(() => pull(true), 100); }
+  else cleanPhotos();
   if (pendingCount()) scheduleSync();
 }
 document.addEventListener('visibilitychange', () => {
