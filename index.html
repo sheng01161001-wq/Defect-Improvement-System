@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v10';
+const VERSION = 'v11';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -663,7 +663,8 @@ function startDraft(id) {
   if (id) { draft = clone(state.defects[id]); draft._orig = clone(draft.photos); return; }
   // 新單：先看有沒有沒存完的（相機開啟時手機可能會重新載入網頁）
   try { const s = JSON.parse(localStorage.getItem('dfi_draft') || 'null'); if (s && curP() && s.pid === curP().id) { draft = s; return; } } catch (e) {}
-  const last = JSON.parse(localStorage.getItem('dfi_last') || '{}');
+  let last = JSON.parse(localStorage.getItem('dfi_last') || '{}');
+  if (curP() && last.pid && last.pid !== curP().id) last = { cat: last.cat };   // 別的建案的棟、樓層不要帶過來
   draft = { id: uid(), pid: curP() ? curP().id : '', cat: last.cat || '結構體', trade: '', vid: '', bldg: last.bldg || '', floor: last.floor || '', spot: '',
     note: '', req: '', photos: [], due: addDays(7), dueN: 7, status: 'wait', reviews: [], _orig: [] };
 }
@@ -696,14 +697,15 @@ VIEWS.edit = () => {
   return `<div class="card">
     <label class="f" style="margin-top:0">缺失照片（點照片可以畫圈標示）</label>
     <div class="photos">${photoRow(d.photos, 'draft', true)}${d.photos.length < 12 ? photoAdders('draft') : ''}</div>
-    <label class="f">位置</label>
+    <label class="f">大分類</label>
+    <div class="chips">${CATS.map(c => `<button class="chip ${d.cat === c ? 'on' : ''}" onclick="setCat('${c}')">${c}</button>`).join('')}</div>
+    ${p.loc ? locPickHTML(d, p.loc) : `<label class="f">位置</label>
+    <div class="muted" style="color:#e8590c">這個建案還沒設定位置規劃，${isAdmin() ? '到 首頁 → 管理建案 → 點建案 設定' : '請後台人員到建案管理設定'}後，這裡會變成用點的。</div>
     <div class="row"><input type="text" style="flex:1" placeholder="棟" list="dlB" value="${esc(d.bldg)}" oninput="draft.bldg=this.value;keepDraft()">
       <input type="text" style="flex:1" placeholder="樓層" list="dlF" value="${esc(d.floor)}" oninput="draft.floor=this.value;keepDraft()">
       <input type="text" style="flex:1.6" placeholder="位置（如 C3 柱）" value="${esc(d.spot)}" oninput="draft.spot=this.value;keepDraft()"></div>
     <datalist id="dlB">${used('bldg').map(x => `<option value="${esc(x)}">`).join('')}</datalist>
-    <datalist id="dlF">${used('floor').map(x => `<option value="${esc(x)}">`).join('')}</datalist>
-    <label class="f">大分類</label>
-    <div class="chips">${CATS.map(c => `<button class="chip ${d.cat === c ? 'on' : ''}" onclick="setCat('${c}')">${c}</button>`).join('')}</div>
+    <datalist id="dlF">${used('floor').map(x => `<option value="${esc(x)}">`).join('')}</datalist>`}
     <label class="f">工項</label>
     <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}${mine.includes(t) && canDropMine('trade', d.cat, t) ? ` <span onclick="event.stopPropagation();dropMine('trade',${jsq(d.cat)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
       <button class="chip ${d._other || d.trade === '其他' ? 'on' : ''}" onclick="otherTrade()">其他（自填）</button></div>
@@ -731,6 +733,37 @@ VIEWS.edit = () => {
        <button class="btn line block" onclick="saveDraft(true)">儲存並傳 PDF 給廠商</button>
        <div class="muted" style="text-align:center;margin-top:4px">也可以只按「儲存缺失」，收工前到總覽一次傳給廠商</div>`}`;
 };
+// 位置：依建案的位置規劃用點的（棟只有一棟就不顯示；結構體／室內／室外各有自己的位置清單）
+// 室內裝修的位置存成「戶別 空間」，例如「A戶 主臥」
+function spotParts(d, l) {
+  const t = String(d.spot || '').split(' ').filter(Boolean);
+  if (d.cat !== '室內裝修') return { u: d.spot || '', r: '' };
+  if (t.length >= 2) return { u: t[0], r: t.slice(1).join(' ') };
+  return (l.rooms || []).includes(t[0]) && !(l.units || []).includes(t[0]) ? { u: '', r: t[0] || '' } : { u: t[0] || '', r: '' };
+}
+function locChips(list, cur, fn) {
+  const all = cur && !list.includes(cur) ? list.concat([cur]) : list;   // 舊資料不在清單裡也要看得到
+  return `<div class="chips">${all.map(x => `<button class="chip ${cur === x ? 'on' : ''}" onclick="${fn}(${jsq(x)})">${esc(x)}</button>`).join('')}</div>`;
+}
+function locPickHTML(d, l) {
+  const fl = floorsOf(l), floors = d.floor && !fl.includes(d.floor) ? fl.concat([d.floor]) : fl, sp = spotParts(d, l);
+  const bl = l.bldgs || [], showB = bl.length > 1 || (d.bldg && !bl.includes(d.bldg));
+  const spotList = d.cat === '結構體' ? l.struct : d.cat === '室外裝修' ? l.outer : l.units;
+  return `${showB ? `<label class="f">棟別</label>${locChips(bl, d.bldg, 'pickBldg')}` : ''}
+    <label class="f">樓層</label>
+    <select onchange="draft.floor=this.value;keepDraft()"><option value="">— 選樓層 —</option>${floors.map(f => `<option ${d.floor === f ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
+    <label class="f">${d.cat === '室內裝修' ? '戶別／公設' : '位置'}</label>${(spotList || []).length || sp.u ? locChips(spotList || [], sp.u, 'pickSpot') : '<div class="muted">建案的位置規劃裡沒有這類的位置，請後台到建案管理加</div>'}
+    ${d.cat === '室內裝修' && ((l.rooms || []).length || sp.r) ? `<label class="f">空間（可不選）</label>${locChips(l.rooms || [], sp.r, 'pickRoom')}` : ''}`;
+}
+function pickBldg(x) { draft.bldg = draft.bldg === x ? '' : x; keepDraft(); render(); }
+function pickSpot(x) {
+  const sp = spotParts(draft, curP().loc), u = sp.u === x ? '' : x;
+  draft.spot = [u, sp.r].filter(Boolean).join(' '); keepDraft(); render();
+}
+function pickRoom(x) {
+  const sp = spotParts(draft, curP().loc), r = sp.r === x ? '' : x;
+  draft.spot = [sp.u, r].filter(Boolean).join(' '); keepDraft(); render();
+}
 // 大家自己加的工項／常用語（雲端共用；沒網路先記著，有網路再上傳）
 function applyCustom(list, o) {
   const rest = list.filter(c => !(c.kind === o.kind && c.key === o.key && c.text === o.text));
@@ -815,7 +848,7 @@ function pickVendor(val) {
 }
 function setCat(c) {
   if (draft.cat === c) return;
-  draft.cat = c; draft.trade = ''; draft._other = false;
+  draft.cat = c; draft.trade = ''; draft._other = false; draft.spot = '';   // 各分類的位置不一樣
   if (draft.vid && !vendorsFor(c).some(v => v.id === draft.vid)) draft.vid = '';
   keepDraft(); render();
 }
@@ -858,13 +891,13 @@ async function saveDraft(withLine) {
   outs.forEach(o => saveD(o, newPh));
   if (isNew) {
     localStorage.removeItem('dfi_draft');
-    localStorage.setItem('dfi_last', JSON.stringify({ cat: d.cat, bldg: d.bldg, floor: d.floor }));
+    localStorage.setItem('dfi_last', JSON.stringify({ pid: d.pid, cat: d.cat, bldg: d.bldg, floor: d.floor }));
   }
   draftDirty = false; draft = null;
-  if (isNew) { stack.length = 0; view = { name: 'home' }; stack.push(view); }
-  else stack.pop();
-  view = { name: 'detail', id: out.id };
-  render();
+  // 存好就回到原本的畫面（新增：回總覽或剛剛的清單；修改：回缺失頁）
+  view = stack.pop() || { name: 'home' };
+  if (view.name === 'edit') view = { name: 'home' };
+  render(); scrollTo(0, 0);
   toast(isNew ? (outs.length > 1 ? `已存檔，派給 ${outs.length} 家廠商` : '已存檔') : '已修改');
   if (withLine) {
     // 先上傳，廠商點連結才看得到；上傳完跳出按鈕（手機瀏覽器要「按一下」才能開 LINE）
@@ -1279,7 +1312,8 @@ VIEWS.settings = () => {
       <button class="btn ghost block" onclick="logout()">登出</button></div>
     ${isAdmin() ? `<div class="card"><h3>後台管理</h3>
       <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
-      <button class="btn ghost block" onclick="go({name:'users'})">👤 帳號管理</button></div>` : ''}
+      <button class="btn ghost block" onclick="go({name:'users'})">👤 帳號管理</button>
+      <button class="btn ghost block" style="color:#c92a2a" onclick="resetData()">🧹 測試資料歸零</button></div>` : ''}
     <div class="card"><h3>資料</h3><div class="muted">還沒上傳：${pendingCount()} 筆　${syncErr ? '（' + esc(syncErr) + '）' : ''}</div>
       <button class="btn ghost block" onclick="syncNow().then(()=>pull())">立即同步</button></div>
     <div class="ver">小棒槌 缺失改善系統 ${VERSION}${LOCAL ? '<br>後端：' + esc(API) : ''}</div>`;
@@ -1298,20 +1332,71 @@ VIEWS.projects = () => {
   return `<div class="card">${state.projects.map(p => `<div class="user-row" onclick="editProject('${p.id}')"><b class="grow">${esc(p.name)}</b>${p.disabled ? '<span class="tag pend">停用</span>' : ''}<span class="muted">${Object.values(state.defects).filter(d => d.pid === p.id).length} 件</span></div>`).join('') || '<div class="muted">還沒有建案</div>'}</div>
     <button class="btn block" onclick="editProject(null)">＋ 新增建案</button>`;
 };
+// 建案的位置規劃（開單時「位置」都用點的，不用打字）
+const LOC_DEF = { b: 1, n: 5, r: 1, bldgs: [], floorsX: [],
+  struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '電梯井', '女兒牆'],
+  units: ['A戶', 'B戶', '梯廳', '走道', '樓梯間'],
+  rooms: ['客廳', '餐廳', '廚房', '主臥', '次臥', '浴室', '陽台', '玄關'],
+  outer: ['東向外牆', '西向外牆', '南向外牆', '北向外牆', '屋頂', '中庭', '車道', '大門', '圍牆'] };
+const splitList = s => [...new Set(String(s || '').split(/[、,，;；\s]+/).map(x => x.trim()).filter(Boolean))];
+function floorsOf(l) {
+  const a = [];
+  for (let i = l.b || 0; i >= 1; i--) a.push('B' + i);
+  for (let i = 1; i <= (l.n || 0); i++) a.push(i + 'F');
+  for (let i = 1; i <= (l.r || 0); i++) a.push('R' + i + 'F');
+  return a.concat((l.floorsX || []).filter(x => !a.includes(x)));
+}
 function editProject(id) {
-  const p = id ? state.projects.find(x => x.id === id) : null;
+  const p = id ? state.projects.find(x => x.id === id) : null, l = (p && p.loc) || LOC_DEF;
+  const txt = (k, label, hint) => `<label class="f">${label}</label><textarea id="pl_${k}" rows="2" style="min-height:0" placeholder="${esc(hint)}">${esc((l[k] || []).join('、'))}</textarea>`;
+  const num = (k, label) => `<label style="flex:1;font-size:14px;min-width:0">${label}<input type="number" inputmode="numeric" id="pl_${k}" min="0" max="80" value="${l[k] || 0}" style="display:block;width:100%;margin-top:2px"></label>`;
   sheet(`<h3>${p ? '修改建案' : '新增建案'}</h3><label class="f">建案名稱</label><input type="text" id="pjn" value="${esc(p ? p.name : '')}">
+    <h3 style="margin-top:16px">位置規劃（開單時用點的）</h3>
+    ${p && !p.loc ? '<div class="muted" style="color:#e8590c">這個建案還沒設定，下面是預設值，改好按儲存。</div>' : ''}
+    <div class="muted">多個項目用「、」或空白分開。</div>
+    ${txt('bldgs', '棟別（只有一棟就空白，開單時不會出現）', '例如：A、B、C')}
+    <label class="f">樓層</label><div class="row">${num('b', '地下幾層')}${num('n', '地上幾層')}${num('r', '屋突幾層')}</div>
+    ${txt('floorsX', '另外的樓層（可不填）', '例如：夾層、機房層')}
+    ${txt('struct', '結構體的位置', '柱、樑、版、牆')}
+    ${txt('units', '室內裝修：戶別／公設', '例如：A戶、B戶、梯廳')}
+    ${txt('rooms', '室內裝修：空間（開單時可不選）', '客廳、主臥、浴室')}
+    ${txt('outer', '室外裝修的位置', '東向外牆、屋頂')}
     ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
     <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
 }
 async function saveProject(id, b) {
   b.disabled = true;
-  const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: !!($('pjd') && $('pjd').checked) };
+  const loc = { b: +$('pl_b').value || 0, n: +$('pl_n').value || 0, r: +$('pl_r').value || 0 };
+  ['bldgs', 'floorsX', 'struct', 'units', 'rooms', 'outer'].forEach(k => { loc[k] = splitList($('pl_' + k).value); });
+  const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: !!($('pjd') && $('pjd').checked), loc };
   try {
-    await api('saveProject', { project: p });
+    const r = await api('saveProject', { project: p });
+    p.loc = r.loc;
     const i = state.projects.findIndex(x => x.id === p.id);
     if (i >= 0) state.projects[i] = p; else { state.projects.push(p); localStorage.setItem('dfi_pid', p.id); }
     persistNow(); closeLayer(); render(); toast('已儲存');
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+// ── 測試完歸零（後台）──
+function resetData() {
+  sheet(`<h3>🧹 測試資料歸零</h3>
+    <div class="muted">清掉的資料不能復原（照片會丟到雲端硬碟垃圾桶，30 天內還能救）。帳號都會留著。</div>
+    <label style="display:block;margin-top:12px"><input type="radio" name="rsm" value="defects" checked> 只清<b>缺失</b>（建案、廠商留著）</label>
+    <label style="display:block;margin-top:8px"><input type="radio" name="rsm" value="all"> 全部清：缺失＋<b>建案、廠商</b>、自己加的工項／常用語</label>
+    <label class="f">確定的話，打「歸零」兩個字</label><input type="text" id="rsc">
+    <button class="btn block" style="background:#c92a2a" onclick="doReset(this)">清除</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function doReset(b) {
+  const mode = document.querySelector('input[name=rsm]:checked').value, c = $('rsc').value.trim();
+  if (c !== '歸零') { toast('請打「歸零」'); return; }
+  b.disabled = true;
+  try {
+    const r = await api('resetData', { mode, confirm: c });
+    outbox = emptyBox(); state = emptyState();
+    localStorage.removeItem('dfi_draft'); localStorage.removeItem('dfi_last');
+    await persistNow(); await pull(true);
+    closeLayer(); stack.length = 0; view = { name: 'start' }; render();
+    toast(`已清除 ${r.defects} 筆缺失、${r.photos} 張照片`);
   } catch (e) { toast(e.message); b.disabled = false; }
 }
 let users = null;

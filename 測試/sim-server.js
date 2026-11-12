@@ -34,6 +34,7 @@ function makeEnv() {
       getMaxColumns: () => maxCols,
       insertColumnsAfter(c, n) { maxCols += n; },
       deleteRow(r) { rows.splice(r - 1, 1); },
+      deleteRows(r, n) { if (r - 1 + n > rows.length) throw new Error('超出列數'); rows.splice(r - 1, n); },
       getRange(r, c, nr = 1, nc = 1) {
         return {
           getValue() { return this.getValues()[0][0]; },

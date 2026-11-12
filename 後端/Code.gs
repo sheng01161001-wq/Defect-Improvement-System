@@ -26,7 +26,7 @@ function 初始化() {
     const ss = SpreadsheetApp.create('缺失改善系統資料庫');
     const s0 = ss.getSheets()[0];
     s0.setName('帳號'); s0.appendRow(['帳號', '姓名', '角色', '鹽', '雜湊', '停用', '建立時間']);
-    ss.insertSheet('建案').appendRow(['建案id', '名稱', '停用', '建立時間']);
+    ss.insertSheet('建案').appendRow(['建案id', '名稱', '停用', '建立時間', '位置規劃']);
     ss.insertSheet('廠商').appendRow(['廠商id', '名稱', '分類', '工項', '聯絡人', '電話', '回報碼', '停用', '更新時間', '建案']);
     ss.insertSheet('缺失').appendRow(['缺失id', '建案id', '編號', '狀態', '分類', '工項', '廠商', '位置', '期限', '版本', '更新時間', '更新者', '資料']);
     DriveApp.getFileById(ss.getId()).moveTo(root);
@@ -53,7 +53,7 @@ const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, v
   vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_ };
 const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
-const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_ };
+const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_, resetData: resetData_ };
 
 function handle_(q) {
   if (!props_().getProperty('SS_ID')) 初始化();
@@ -225,7 +225,23 @@ const un_ = x => String(x).replace(/^'/, '');
 
 // ── 建案（後台管理）──────────────────────────
 function projects_() {
-  return rows_('建案').map(({ row, r }) => ({ row, id: String(r[0]), name: un_(r[1]), disabled: r[2] === '是', created: String(r[3]) }));
+  return rows_('建案').map(({ row, r }) => {
+    let loc = null;
+    try { loc = r[4] ? JSON.parse(String(r[4]).replace(/^~/, '')) : null; } catch (e) {}
+    return { row, id: String(r[0]), name: un_(r[1]), disabled: r[2] === '是', created: String(r[3]), loc };
+  });
+}
+// 位置規劃：棟別（只有一棟就空的）、地下／地上／屋突層數、另外的樓層、各分類的位置清單
+const LOC_LISTS = ['bldgs', 'floorsX', 'struct', 'units', 'rooms', 'outer'];
+function cleanLoc_(l) {
+  if (!l || typeof l !== 'object') return null;
+  const num = (x, max) => Math.max(0, Math.min(max, Math.floor(Number(x) || 0)));
+  const out = { b: num(l.b, 10), n: num(l.n, 80), r: num(l.r, 5) };
+  LOC_LISTS.forEach(k => {
+    const seen = {};
+    out[k] = (Array.isArray(l[k]) ? l[k] : []).map(s => str_(s, 20)).filter(s => s && !seen[s] && (seen[s] = 1)).slice(0, 60);
+  });
+  return out;
 }
 function saveProject_(q) {
   return withLock_(() => {
@@ -235,10 +251,29 @@ function saveProject_(q) {
     if (!name) throw new Error('請填建案名稱');
     const all = projects_(), hit = all.find(x => x.id === p.id);
     if (all.some(x => x.id !== p.id && x.name === name)) throw new Error('已經有同名的建案');
-    const sh = sheet_('建案');
+    const sh = sheet_('建案'), loc = cleanLoc_(p.loc), locS = loc ? '~' + JSON.stringify(loc) : '';
+    if (sh.getMaxColumns() < 5) sh.insertColumnsAfter(sh.getMaxColumns(), 5 - sh.getMaxColumns());
+    if (!sh.getRange(1, 5).getValue()) sh.getRange(1, 5).setValue('位置規劃');
     if (hit) sh.getRange(hit.row, 2, 1, 2).setValues([[txt_(name), p.disabled ? '是' : '']]);
-    else sh.appendRow([p.id, txt_(name), p.disabled ? '是' : '', now_()]);
-    return {};
+    else sh.appendRow([p.id, txt_(name), p.disabled ? '是' : '', now_(), '']);
+    // 沒送位置規劃（舊版 App）就不動原本的
+    if (p.loc !== undefined) sh.getRange(hit ? hit.row : sh.getLastRow(), 5).setValue(locS);
+    return { loc };
+  });
+}
+
+// ══ 測試完歸零（後台）：mode 'defects' 只清缺失；'all' 連建案、廠商、自填工項／常用語一起清。帳號都留著 ══
+function resetData_(q) {
+  if (q.confirm !== '歸零') throw new Error('請打「歸零」確認');
+  return withLock_(() => {
+    const clear = name => { const sh = name === '常用' ? customSheet_() : sheet_(name), last = sh.getLastRow(); if (last >= 2) sh.deleteRows(2, last - 1); };
+    const trashAll = folder => { const it = folder.getFiles(); let n = 0; while (it.hasNext()) { it.next().setTrashed(true); n++; } return n; };
+    const nD = Math.max(0, sheet_('缺失').getLastRow() - 1);
+    clear('缺失');
+    const nPh = trashAll(photoFolder_());
+    trashAll(exportFolder_());
+    if (q.mode === 'all') { clear('建案'); clear('廠商'); clear('常用'); }
+    return { defects: nD, photos: nPh };
   });
 }
 
@@ -305,7 +340,7 @@ const sigOf_ = d => Utilities.base64Encode(Utilities.computeDigest(Utilities.Dig
 
 function list_() {
   return {
-    projects: projects_().map(p => ({ id: p.id, name: p.name, disabled: p.disabled })),
+    projects: projects_().map(p => ({ id: p.id, name: p.name, disabled: p.disabled, loc: p.loc })),
     vendors: vendors_().map(pubVendor_),
     defects: defectRows_().map(outD_),
     customs: customs_().map(c => ({ kind: c.kind, key: c.key, text: c.text, byUser: c.byUser })),

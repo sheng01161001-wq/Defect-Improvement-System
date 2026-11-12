@@ -230,5 +230,31 @@ nd = cp(okCall({ action: 'list', token: S3.token }, '讀').defects.find(z => z.i
 ok(okCall({ action: 'saveDefect', token: S3.token, defect: Object.assign(nd, { note: '再改' }), baseV: nd.v }, '前端想清掉通知紀錄').defect.sent, '通知紀錄只有後端能改');
 badCall({ action: 'markSent', ids: ['snt0001'] }, '沒登入記錄已傳');
 
+const TA = S3.token, TB = okCall({ action: 'login', user: 'site2', pass: 'test-pass-3' }, '工地人員重新登入').token;
+// 建案位置規劃
+const PL = okCall({ action: 'saveProject', token: TA, project: { id: 'proj01', name: '冀晨', loc: { b: 2, n: 14, r: 2, bldgs: ['A', 'B', 'A', ''], floorsX: ['夾層'], struct: ['柱', '樑'], units: ['A1', 'A2'], rooms: ['客廳'], outer: ['東向外牆'] } } }, '設定位置規劃');
+ok(PL.loc.bldgs.join() === 'A,B' && PL.loc.n === 14, '位置規劃去重、去空白');
+let LP = okCall({ action: 'list', token: TB }, '讀').projects.find(p => p.id === 'proj01');
+ok(LP.loc && LP.loc.struct.join() === '柱,樑' && LP.loc.units.join() === 'A1,A2', '讀得到位置規劃');
+okCall({ action: 'saveProject', token: TA, project: { id: 'proj01', name: '冀晨2' } }, '舊版 App 只改名');
+LP = okCall({ action: 'list', token: TB }, '讀').projects.find(p => p.id === 'proj01');
+ok(LP.name === '冀晨2' && LP.loc && LP.loc.r === 2, '只改名不會清掉位置規劃');
+okCall({ action: 'saveProject', token: TA, project: { id: 'projnew', name: '新案位置', loc: { n: 5 } } }, '新建案帶位置規劃');
+ok(okCall({ action: 'list', token: TB }, '讀').projects.find(p => p.id === 'projnew').loc.n === 5, '新建案位置規劃存對列');
+
+// 歸零
+badCall({ action: 'resetData', token: TB, confirm: '歸零' }, '工地人員歸零');
+badCall({ action: 'resetData', token: TA, confirm: '好' }, '沒打歸零');
+const RZ = okCall({ action: 'resetData', token: TA, confirm: '歸零', mode: 'defects' }, '只清缺失');
+let LR = okCall({ action: 'list', token: TA }, '讀');
+ok(RZ.defects > 0 && LR.defects.length === 0 && LR.projects.length > 0 && LR.vendors.length > 0, '缺失清空，建案廠商還在');
+ok(env._files.filter(f => !f.trashed).length === 0, '照片、匯出檔都丟垃圾桶');
+const RN = okCall({ action: 'saveDefect', token: TA, defect: Object.assign({}, D, { id: 'aft0001', photos: [] }), baseV: 0 }, '歸零後開單');
+ok(RN.defect.no === 1, '歸零後編號從 1 開始');
+okCall({ action: 'resetData', token: TA, confirm: '歸零', mode: 'all' }, '全部清');
+LR = okCall({ action: 'list', token: TA }, '讀（帳號還在）');
+ok(!LR.defects.length && !LR.projects.length && !LR.vendors.length && !LR.customs.length, '建案、廠商、常用語都清掉');
+okCall({ action: 'saveProject', token: TA, project: { id: 'proj09', name: '正式案' } }, '清完可以建新建案');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);
