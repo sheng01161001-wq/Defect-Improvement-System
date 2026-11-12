@@ -51,7 +51,7 @@ function doPost(e) {
 // 廠商用的（不用登入，靠回報碼）
 const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_,
   vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_ };
-const USER_ = { me: me_, list: list_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_,
+const USER_ = { me: me_, list: list_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
 const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_ };
 
@@ -276,7 +276,41 @@ function list_() {
     projects: projects_().map(p => ({ id: p.id, name: p.name, disabled: p.disabled })),
     vendors: vendors_().map(pubVendor_),
     defects: defectRows_().map(outD_),
+    customs: customs_().map(c => ({ kind: c.kind, key: c.key, text: c.text, byUser: c.byUser })),
   };
+}
+
+// ── 大家自己加的工項、常用語（全公司共用）──────────
+const KINDS = { trade: '工項', phrase: '常用語' };
+function customSheet_() {
+  const ss = SpreadsheetApp.openById(props_().getProperty('SS_ID'));
+  let sh = ss.getSheetByName('常用');
+  if (!sh) { sh = ss.insertSheet('常用'); sh.appendRow(['類型', '分類', '內容', '新增的人', '帳號', '時間']); }
+  return sh;
+}
+function customs_() {
+  const sh = customSheet_(), last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, 6).getValues().map((r, i) => ({ row: i + 2,
+    kind: r[0] === KINDS.phrase ? 'phrase' : 'trade', key: un_(r[1]), text: un_(r[2]), by: String(r[3]), byUser: String(r[4]) }));
+}
+// q.op：add 新增／drop 拿掉（新增的人或後台才能拿掉）
+function saveCustom_(q, u) {
+  return withLock_(() => {
+    if (!KINDS[q.kind]) throw new Error('類型不對');
+    const key = str_(q.key, 60), text = str_(q.text, q.kind === 'trade' ? 20 : 40);
+    const cat = q.kind === 'trade' ? key : key.split('|')[0];
+    if (CATS.indexOf(cat) < 0 || !text) throw new Error('常用資料不完整');
+    const all = customs_(), hit = all.find(c => c.kind === q.kind && c.key === key && c.text === text);
+    if (q.op === 'drop') {
+      if (!hit) return {};
+      if (u.role !== 'admin' && hit.byUser !== u.user) throw new Error(`「${text}」是 ${hit.by} 加的，只有他或後台能拿掉`);
+      customSheet_().deleteRow(hit.row);
+      return {};
+    }
+    if (!hit) customSheet_().appendRow([KINDS[q.kind], txt_(key), txt_(text), u.name, u.user, now_()]);
+    return {};
+  });
 }
 
 const okDate_ = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s));

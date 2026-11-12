@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v3';
+const VERSION = 'v4';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -337,6 +337,8 @@ async function api(action, data) {
   if (!j.ok && !j.conflict && !j.gone) throw new ServerError(j.err || '發生錯誤');
   return j;
 }
+// 舊版存的資料少了新欄位
+function fixLoaded() { if (!state.customs) state.customs = []; if (!outbox.cu) outbox.cu = []; }
 function setAuth(r) { auth = { api: API, token: r.token, me: r.me }; localStorage.setItem('dfi_auth', JSON.stringify(auth)); }
 async function logout(expired) {
   if (!expired && pendingCount() && !confirm(`還有 ${pendingCount()} 筆資料沒上傳，登出會丟掉。確定登出？`)) return;
@@ -349,8 +351,9 @@ async function logout(expired) {
 }
 
 // ── 資料（雲端副本＋還沒上傳的修改）─────────
-const emptyState = () => ({ projects: [], vendors: [], defects: {} });
-const emptyBox = () => ({ ph: [], d: {}, del: [] });
+const emptyState = () => ({ projects: [], vendors: [], defects: {}, customs: [] });
+// cu：共用工項／常用語的新增、拿掉（照順序上傳）
+const emptyBox = () => ({ ph: [], d: {}, del: [], cu: [] });
 let state = emptyState(), outbox = emptyBox(), seq = 0;
 const CK = 'cache:' + API, OK = 'outbox:' + API;
 let saveTimer, saving = Promise.resolve();
@@ -368,7 +371,7 @@ function saveD(d, newPhotos) {
   (newPhotos || []).forEach(id => { if (!outbox.ph.includes(id)) outbox.ph.push(id); });
   persist();
 }
-const pendingCount = () => outbox.ph.length + Object.keys(outbox.d).length + outbox.del.length;
+const pendingCount = () => outbox.ph.length + Object.keys(outbox.d).length + outbox.del.length + (outbox.cu || []).length;
 const isPending = id => !!outbox.d[id];
 let syncing = false, pulling = false, pullAgain = false, syncErr = '', syncTimer, lastPull = 0;
 function setSyncUI() {
@@ -396,6 +399,11 @@ async function sync() {
       const id = outbox.ph[0], data = await photoGet(id);
       if (data) await skipBad(() => api('uploadPhoto', { id, data }));
       outbox.ph.shift(); await persistNow();
+    }
+    while (outbox.cu.length) {
+      await skipBad(() => api('saveCustom', outbox.cu[0]));
+      outbox.cu.shift(); await persistNow();
+      needPull = true;
     }
     while (outbox.del.length) {
       await skipBad(() => api('deleteDefect', { id: outbox.del[0] }));
@@ -436,7 +444,10 @@ async function pull(quiet) {
     r.defects.forEach(d => { defects[d.id] = d; });
     Object.keys(outbox.d).forEach(id => { if (state.defects[id]) defects[id] = state.defects[id]; });
     outbox.del.forEach(id => { delete defects[id]; });
-    state = { projects: r.projects, vendors: r.vendors, defects };
+    // 共用工項／常用語：雲端的＋還沒上傳的修改
+    let customs = r.customs || [];
+    outbox.cu.forEach(o => { customs = applyCustom(customs, o); });
+    state = { projects: r.projects, vendors: r.vendors, defects, customs };
     lastPull = Date.now();
     await persistNow();
   } catch (e) { if (!quiet) toast(e.message); }
@@ -576,6 +587,7 @@ async function doLogin(first) {
     const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
     if (saved) state = saved;
     if (box) outbox = box;
+    fixLoaded(); migrateLocalCustoms();
     view = { name: 'home' }; render(); pull();
   } catch (e) { toast(e.message); b.disabled = false; }
 }
@@ -639,12 +651,12 @@ VIEWS.edit = () => {
   photoLists.draft = { get: () => d.photos, editable: true, changed: () => { keepDraft(); render(); } };
   photoTargets.draft = id => { d.photos.push(id); keepDraft(); render(); };
   const base = Object.keys(TRADES[d.cat] || {}).filter(t => t !== '其他');
-  const mine = myList('dfi_trades', d.cat).filter(t => !base.includes(t));
+  const mine = myList('trade', d.cat).filter(t => !base.includes(t));
   const custom = d.trade && !base.includes(d.trade) && d.trade !== '其他';
   const trades = base.concat(mine, custom && !mine.includes(d.trade) ? [d.trade] : []);
   const showAll = d._allV || d._other || custom;
   const vs = vendorsFor(d.cat);
-  const myPh = myList('dfi_phr', d.cat + '|' + d.trade);
+  const myPh = myList('phrase', d.cat + '|' + d.trade);
   const phrases = ((TRADES[d.cat] || {})[d.trade] || []).concat(myPh.filter(t => !((TRADES[d.cat] || {})[d.trade] || []).includes(t)));
   const used = f => [...new Set(Object.values(state.defects).filter(x => x.pid === p.id).map(x => x[f]).filter(Boolean))];
   const dueN = [3, 7, 14].includes(d.dueN) ? d.dueN : 0;
@@ -660,7 +672,7 @@ VIEWS.edit = () => {
     <label class="f">大分類</label>
     <div class="chips">${CATS.map(c => `<button class="chip ${d.cat === c ? 'on' : ''}" onclick="setCat('${c}')">${c}</button>`).join('')}</div>
     <label class="f">工項</label>
-    <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}${mine.includes(t) ? ` <span onclick="event.stopPropagation();dropMine('dfi_trades',${jsq(d.cat)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
+    <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}${mine.includes(t) && canDropMine('trade', d.cat, t) ? ` <span onclick="event.stopPropagation();dropMine('trade',${jsq(d.cat)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
       <button class="chip ${d._other || d.trade === '其他' ? 'on' : ''}" onclick="otherTrade()">其他（自填）</button></div>
     ${d._other ? `<div class="row" style="margin-top:6px"><input type="text" id="otT" class="grow" maxlength="20" placeholder="輸入工項名稱，例如：防火披覆"><button class="btn small" onclick="setOtherTrade()">確定</button></div>` : ''}
     <label class="f">負責廠商${d.trade ? '（依工項自動帶出，可改）' : ''}</label>
@@ -670,7 +682,7 @@ VIEWS.edit = () => {
       ${showAll ? '' : '<option value="*">▼ 顯示全部廠商…</option>'}
       <option value="+">＋ 新增廠商…</option></select></div>
     <label class="f">缺失說明（點常用語快速帶入，也可以直接打字）</label>
-    <div class="chips" style="margin-bottom:6px">${phrases.map(t => `<button class="chip" onclick="addPhrase(${jsq(t)})">${esc(t)}${myPh.includes(t) ? ` <span onclick="event.stopPropagation();dropMine('dfi_phr',${jsq(d.cat + '|' + d.trade)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
+    <div class="chips" style="margin-bottom:6px">${phrases.map(t => `<button class="chip" onclick="addPhrase(${jsq(t)})">${esc(t)}${myPh.includes(t) && canDropMine('phrase', d.cat + '|' + d.trade, t) ? ` <span onclick="event.stopPropagation();dropMine('phrase',${jsq(d.cat + '|' + d.trade)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
       <button class="chip add" onclick="newPhrase()">＋ 新增常用語</button></div>
     <textarea id="noteT" placeholder="例如：樑底蜂窩約 30×20cm" oninput="draft.note=this.value;keepDraft()">${esc(d.note)}</textarea>
     <label class="f">改善要求（可不填）</label>
@@ -684,33 +696,50 @@ VIEWS.edit = () => {
     : `<button class="btn block" onclick="saveDraft(false)">儲存缺失</button>
        <button class="btn line block" onclick="saveDraft(true)">儲存並傳 LINE 給廠商</button>`}`;
 };
-// 使用者自己加的工項／常用語（存在這支手機）
-function myList(key, k) { try { return (JSON.parse(localStorage.getItem(key) || '{}')[k] || []); } catch (e) { return []; } }
-function addMine(key, k, t) {
-  let o = {}; try { o = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
-  o[k] = (o[k] || []).filter(x => x !== t).concat([t]);
-  localStorage.setItem(key, JSON.stringify(o));
+// 大家自己加的工項／常用語（雲端共用；沒網路先記著，有網路再上傳）
+function applyCustom(list, o) {
+  const rest = list.filter(c => !(c.kind === o.kind && c.key === o.key && c.text === o.text));
+  return o.op === 'add' ? rest.concat([{ kind: o.kind, key: o.key, text: o.text, byUser: o.byUser || '' }]) : rest;
 }
-function dropMine(key, k, t) {
-  if (!confirm(`從常用清單拿掉「${t}」？`)) return;
-  let o = {}; try { o = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
-  o[k] = (o[k] || []).filter(x => x !== t);
-  localStorage.setItem(key, JSON.stringify(o));
-  render();
+const myCustoms = (kind, k) => (state.customs || []).filter(c => c.kind === kind && c.key === k);
+function myList(kind, k) { return myCustoms(kind, k).map(c => c.text); }
+const canDropMine = (kind, k, t) => isAdmin() || myCustoms(kind, k).some(c => c.text === t && (!c.byUser || c.byUser === auth.me.user));
+function addMine(kind, k, t) {
+  if (myList(kind, k).includes(t)) return;
+  const o = { op: 'add', kind, key: k, text: t, byUser: auth.me.user };
+  state.customs = applyCustom(state.customs || [], o);
+  outbox.cu.push({ op: o.op, kind: o.kind, key: o.key, text: o.text });
+  persist();
+}
+function dropMine(kind, k, t) {
+  if (!canDropMine(kind, k, t)) { toast('這是別人加的，只有他或後台能拿掉'); return; }
+  if (!confirm(`從大家的常用清單拿掉「${t}」？`)) return;
+  const o = { op: 'drop', kind, key: k, text: t };
+  state.customs = applyCustom(state.customs || [], o);
+  outbox.cu.push(o);
+  persist(); render();
+}
+// v3 存在手機裡的自訂清單 → 搬到雲端共用（只做一次）
+function migrateLocalCustoms() {
+  [['dfi_trades', 'trade'], ['dfi_phr', 'phrase']].forEach(([key, kind]) => {
+    let o = null; try { o = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+    if (o) Object.entries(o).forEach(([k, arr]) => (arr || []).forEach(t => addMine(kind, k, t)));
+    localStorage.removeItem(key);
+  });
 }
 function otherTrade() { draft._other = !draft._other; render(); if (draft._other) setTimeout(() => $('otT') && $('otT').focus(), 50); }
 function setOtherTrade() {
   const t = ($('otT').value || '').trim().slice(0, 20);
   if (!t) { toast('請輸入工項名稱'); return; }
   draft._other = false;
-  if (!Object.keys(TRADES[draft.cat] || {}).includes(t)) addMine('dfi_trades', draft.cat, t);
+  if (!Object.keys(TRADES[draft.cat] || {}).includes(t)) addMine('trade', draft.cat, t);
   draft.trade = '';
   setTrade(t);
 }
 function newPhrase() {
   const t = (prompt('新增常用語（之後點一下就能帶入）') || '').trim().slice(0, 40);
   if (!t) return;
-  addMine('dfi_phr', draft.cat + '|' + draft.trade, t);
+  addMine('phrase', draft.cat + '|' + draft.trade, t);
   addPhrase(t); render();
 }
 const vOpt = (v, cur) => `<option value="${v.id}" ${cur === v.id ? 'selected' : ''}>${esc(v.name)}${v.trades.length ? '（' + esc(v.trades.join('、')) + '）' : ''}</option>`;
@@ -1230,6 +1259,7 @@ async function vpSubmit(id) {
     const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
     if (saved) state = saved;
     if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
+    fixLoaded(); migrateLocalCustoms();
     // 有沒存完的新缺失 → 直接回到新增畫面
     if (localStorage.getItem('dfi_draft')) { view = { name: 'edit' }; startDraft(null); }
     render();

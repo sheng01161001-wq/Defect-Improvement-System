@@ -145,5 +145,17 @@ for (let i = 0; i < 30; i++) {
 }
 ok(okCall({ action: 'list', token: ta }, '讀').defects.find(z => z.id === 'def0009').note.length === 1800, '長資料讀回完整');
 
+// 共用的工項、常用語
+okCall({ action: 'saveCustom', token: tb, op: 'add', kind: 'trade', key: '結構體', text: '防火披覆' }, '新增自填工項');
+okCall({ action: 'saveCustom', token: tb, op: 'add', kind: 'trade', key: '結構體', text: '防火披覆' }, '重複新增不出錯');
+okCall({ action: 'saveCustom', token: tc, op: 'add', kind: 'phrase', key: '結構體|鋼筋', text: '0-1 鋼筋外露' }, '新增常用語');
+badCall({ action: 'saveCustom', token: tb, op: 'add', kind: 'trade', key: '亂', text: 'x' }, '分類不對');
+let CU = okCall({ action: 'list', token: tc }, '讀').customs;
+ok(CU.length === 2 && CU.some(c => c.kind === 'phrase' && c.text === '0-1 鋼筋外露'), '別人看得到共用清單（文字沒被轉成日期）');
+badCall({ action: 'saveCustom', token: tc, op: 'drop', kind: 'trade', key: '結構體', text: '防火披覆' }, '別人拿掉我加的');
+okCall({ action: 'saveCustom', token: ta, op: 'drop', kind: 'trade', key: '結構體', text: '防火披覆' }, '後台拿掉');
+okCall({ action: 'saveCustom', token: tc, op: 'drop', kind: 'phrase', key: '結構體|鋼筋', text: '0-1 鋼筋外露' }, '自己拿掉');
+ok(okCall({ action: 'list', token: tc }, '讀').customs.length === 0, '都拿掉了');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);
