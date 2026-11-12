@@ -198,5 +198,21 @@ const S3 = okCall({ action: 'saveUser', token: S2.token, user: 'boss', newUser: 
 ok(S3.token && S3.me.user === 'chief', '拿到新帳號的登入');
 okCall({ action: 'list', token: S3.token }, '新登入可以用');
 
+// 匯出 PDF／Excel
+const EX = okCall({ action: 'saveDefect', token: S3.token, defect: Object.assign({}, D, { id: 'exp0001', photos: ['ph0009'], vid: 'ven002', note: '牆面<裂縫>' }), baseV: 0 }, '開匯出測試單');
+okCall({ action: 'uploadPhoto', token: S3.token, id: 'ph0009', data: img }, '匯出用照片');
+const P1 = okCall({ action: 'exportFile', token: S3.token, kind: 'pdf', ids: ['exp0001'], title: '美家油漆', withData: true }, '工地匯出 PDF');
+const pdfTxt = Buffer.from(P1.data, 'base64').toString('utf8');
+ok(P1.url && /\.pdf$/.test(P1.name) && pdfTxt.includes('牆面&lt;裂縫&gt;') && pdfTxt.includes('data:image/jpeg;base64'), 'PDF 有內容、有照片、文字有跳脫');
+ok(env._files.find(f => f.name === P1.name).sharing === 'anyone/view', 'PDF 有連結的人可以看');
+const X1 = okCall({ action: 'exportFile', token: S3.token, kind: 'xlsx', ids: ['exp0001'], withData: true }, '工地匯出 Excel');
+ok(/\.xlsx$/.test(X1.name) && Buffer.from(X1.data, 'base64').toString('utf8').includes('牆面&lt;裂縫&gt;'), 'Excel 有內容');
+badCall({ action: 'exportFile', token: S3.token, kind: 'pdf', ids: [] }, '沒選缺失');
+badCall({ action: 'exportFile', kind: 'pdf', ids: ['exp0001'] }, '沒登入匯出');
+const VX = okCall({ action: 'vendorExport', code: V2.code, kind: 'pdf' }, '廠商匯出自己的 PDF');
+ok(VX.url && !VX.data, '廠商拿到連結');
+badCall({ action: 'vendorExport', code: V2.code, kind: 'pdf', ids: ['nope'] }, '廠商匯出別人的單');
+okCall({ action: 'vendorExport', code: V2.code, kind: 'xlsx', ids: ['exp0001'] }, '廠商匯出 Excel');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

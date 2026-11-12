@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v8';
+const VERSION = 'v9';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -888,7 +888,7 @@ VIEWS.list = () => {
       <option value="*">全部廠商</option>${vs.map(id => `<option value="${id}" ${LF.vid === id ? 'selected' : ''}>${esc(vName(id))}</option>`).join('')}</select>
       <input type="search" style="flex:1" placeholder="🔍 搜尋" value="${esc(LF.q)}" onchange="LF.q=this.value;render()"></div>
     ${LF.vid ? `<div class="row" style="margin-bottom:8px"><b class="grow">🏢 ${esc(vName(LF.vid))}</b><button class="btn ghost small" onclick="go({name:'vendor',id:'${LF.vid}'})">廠商頁／傳 LINE ›</button></div>` : ''}
-    <div class="muted" style="margin-bottom:6px">共 ${ds.length} 件</div>
+    <div class="row" style="margin-bottom:6px"><span class="muted grow">共 ${ds.length} 件</span>${ds.length ? `<button class="btn ghost small" onclick="exportShare('pdf',${esc(JSON.stringify(ds.slice(0, 40).map(d => d.id)))},${jsq(LF.vid ? vName(LF.vid) : (p ? p.name : ''))})">📄 PDF</button> <button class="btn ghost small" onclick="exportShare('xlsx',${esc(JSON.stringify(ds.slice(0, 40).map(d => d.id)))},${jsq(LF.vid ? vName(LF.vid) : (p ? p.name : ''))})">📊 Excel</button>` : ''}</div>
     ${ds.length ? ds.map(itemHTML).join('') : '<div class="empty">沒有符合的缺失</div>'}`;
 };
 
@@ -939,7 +939,7 @@ VIEWS.detail = () => {
   <div class="card">
     ${d.vid ? `<button class="btn line block" onclick="sendLine('${d.id}')">傳 LINE 給廠商</button>` : ''}
     <div class="row" style="margin-top:8px">
-      <button class="btn ghost grow" onclick="go({name:'notice',ids:['${d.id}']})">🖨 通知單</button>
+      <button class="btn ghost grow" onclick="exportShare('pdf',['${d.id}'],${jsq(vName(d.vid))})">📄 PDF</button>
       ${d.vid ? `<button class="btn ghost grow" onclick="copyMsg('${d.id}')">📋 複製訊息</button>` : ''}
       ${canEdit ? `<button class="btn ghost grow" onclick="startDraft('${d.id}');go({name:'edit',id:'${d.id}'})">✏️ 修改</button>` : ''}
     </div></div>
@@ -1021,6 +1021,39 @@ async function copyText(t) {
 }
 function copyMsg(id) { const d = checkSendable(id); if (d) copyText(lineMsg(d)); }
 
+// ── PDF／Excel：後端產生 → 直接分享檔案到 LINE，或傳下載連結 ─────
+let lastExport = null;
+async function exportShare(kind, ids, title) {
+  const pend = ids.filter(id => !state.defects[id] || !state.defects[id].v || isPending(id));
+  if (pend.length) { toast('有缺失還沒上傳，上傳後再匯出'); syncNow(); return; }
+  if (ids.length > 40) { toast('一次最多 40 筆，請先篩選'); return; }
+  sheet(`<div class="empty">正在產生 ${kind === 'pdf' ? 'PDF' : 'Excel'}（${ids.length} 筆）…<br><span class="muted">照片多的話要等十幾秒</span></div>`);
+  try {
+    const r = await api('exportFile', { kind, ids, title, withData: true });
+    const bin = atob(r.data), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const type = kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const file = new File([u8], r.name, { type });
+    const v = ids.length && state.defects[ids[0]] ? vendorOf(state.defects[ids[0]].vid) : null;
+    const lines = [`【缺失改善${kind === 'pdf' ? '通知單' : '清單'}】${title || ''}`, `共 ${ids.length} 筆，請查收`];
+    if (v && v.code) lines.push('改善完成請點連結回傳照片 👇', vendorLink(v));
+    lastExport = { file, url: r.url, name: r.name, text: lines.join('\n') };
+    const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    sheet(`<h3>${kind === 'pdf' ? '📄 PDF' : '📊 Excel'} 做好了</h3><div class="muted" style="word-break:break-all">${esc(r.name)}</div>
+      ${canFile ? '<button class="btn line block" onclick="shareFile()">傳到 LINE（附檔案）</button><div class="muted">按了會跳出分享，選 LINE → 選廠商的聊天室。</div>' : ''}
+      <button class="btn ${canFile ? 'ghost' : 'line'} block" onclick="lineExportLink()">傳 LINE：檔案下載連結</button>
+      <a class="btn ghost block" href="${esc(r.url)}" target="_blank" rel="noopener">開啟／下載／列印</a>
+      <button class="btn ghost block" onclick="copyText(lastExport.url)">📋 複製下載連結</button>
+      <button class="btn ghost block" onclick="closeLayer()">關閉</button>
+      <div class="muted" style="margin-top:6px">下載連結 7 天內有效。</div>`);
+  } catch (e) { closeLayer(); toast(e.message); }
+}
+function lineExportLink() { openLine(lastExport.text + '\n\n📎 ' + lastExport.name + '\n' + lastExport.url); }
+async function shareFile() {
+  try { await navigator.share({ files: [lastExport.file], text: lastExport.text }); }
+  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請用「傳 LINE：檔案下載連結」'); }
+}
+
 // ── 通知單（列印／存 PDF）─────────────────────
 VIEWS.notice = () => {
   hdr('缺失改善通知單');
@@ -1087,7 +1120,7 @@ VIEWS.vendor = () => {
       <button class="btn ghost block" onclick="copyText(vendorLink(vendorOf('${v.id}')))">📋 複製連結</button>` : '<div class="muted">上傳後才有連結</div>'}
       ${isAdmin() && v.code ? `<button class="btn ghost block" onclick="resetCode('${v.id}')">換新連結（舊的會失效）</button>` : ''}</div>
     <div class="card"><h3>${esc(p ? p.name : '')}：未結案 ${open.length} 件</h3>
-      ${open.length ? `<button class="btn ghost block" style="margin-bottom:10px" onclick="go({name:'notice',ids:${esc(JSON.stringify(open.map(d => d.id)))}})">🖨 列印全部通知單</button>` : ''}
+      ${open.length ? `<div class="row" style="margin-bottom:10px"><button class="btn ghost grow" onclick="exportShare('pdf',${esc(JSON.stringify(open.map(d => d.id)))},${jsq(v.name)})">📄 PDF 通知單</button><button class="btn ghost grow" onclick="exportShare('xlsx',${esc(JSON.stringify(open.map(d => d.id)))},${jsq(v.name)})">📊 Excel 清單</button></div>` : ''}
       ${open.map(itemHTML).join('') || '<div class="muted">沒有未結案的缺失</div>'}
       ${ds.length > open.length ? `<button class="btn ghost block" onclick="go({name:'list',vid:'${v.id}',st:'done'})">看已結案（${ds.length - open.length} 件）</button>` : ''}</div>`;
 };
@@ -1255,7 +1288,8 @@ function renderVendorPortal() {
   if (VP.err) { A.innerHTML = `<div class="card login"><h3>打不開</h3><p>${esc(VP.err)}</p><button class="btn block" onclick="VP=null;render();loadVendorPortal()">再試一次</button></div>`; return; }
   const ds = VP.defects, open = ds.filter(d => d.status === 'wait' || d.status === 'doing').sort((a, b) => a.due.localeCompare(b.due));
   const chk = ds.filter(d => d.status === 'check'), done = ds.filter(d => d.status === 'done');
-  A.innerHTML = `<div class="card"><b>${esc(VP.vendor.name)}</b> 您好：<br><span class="muted">以下是工地巡檢發現、需要貴公司改善的缺失。改善完成後請按「回報改善完成」並拍照上傳，工地複查合格就會結案。</span></div>
+  A.innerHTML = `<div class="card"><b>${esc(VP.vendor.name)}</b> 您好：<br><span class="muted">以下是工地巡檢發現、需要貴公司改善的缺失。改善完成後請按「回報改善完成」並拍照上傳，工地複查合格就會結案。</span>
+    ${open.length ? `<div class="row" style="margin-top:10px"><button class="btn ghost grow" onclick="vpExport('pdf',null,this)">📄 下載 PDF 通知單</button><button class="btn ghost grow" onclick="vpExport('xlsx',null,this)">📊 下載 Excel</button></div><div class="muted" style="margin-top:4px">可以列印或轉寄。在 LINE 裡打不開的話，按右上角「⋯」用瀏覽器開啟。</div>` : ''}</div>
     <h3 style="color:var(--steel);margin:16px 4px 8px">待改善（${open.length}）</h3>${open.map(vpCard).join('') || '<div class="empty">目前沒有待改善的缺失 👍</div>'}
     ${chk.length ? `<h3 style="color:var(--steel);margin:16px 4px 8px">已回報，等工地複查（${chk.length}）</h3>${chk.map(vpCard).join('')}` : ''}
     ${done.length ? `<h3 style="color:var(--steel);margin:16px 4px 8px">最近結案（${done.length}）</h3>${done.map(vpCard).join('')}` : ''}
@@ -1288,8 +1322,17 @@ function vpCard(d) {
     <div class="photos">${photoRow(d.photos, 'vp-' + d.id, false)}</div>
     ${back && !back.ok && can ? `<div class="sub ng"><b>工地複查不合格（${esc((back.at || '').slice(0, 10))}）</b><div>${esc(back.note)}</div><div class="photos">${(back.photos || []).map(phView).join('')}</div></div>` : ''}
     ${fix && !can ? `<div class="sub fix"><b>您的回報</b>　<span class="muted">${esc(fix.at)}</span>${fix.note ? `<div>${esc(fix.note)}</div>` : ''}<div class="photos">${fix.photos.map(phView).join('')}</div></div>` : ''}
+    <div style="text-align:right;margin-top:6px"><button class="btn ghost small" onclick="vpExport('pdf',['${d.id}'],this)">📄 這筆的 PDF</button></div>
     ${can && vpOpen !== d.id ? `<div class="row" style="margin-top:10px">${d.status === 'wait' ? `<button class="btn ghost grow" onclick="vpAck('${d.id}',this)">收到，處理中</button>` : ''}<button class="btn ok grow" onclick="vpOpen='${d.id}';vpForm={photos:[],note:''};render()">回報改善完成</button></div>` : ''}
     ${form}</div>`;
+}
+async function vpExport(kind, ids, b) {
+  const t = b.textContent; b.disabled = true; b.textContent = '產生中…';
+  try {
+    const r = await api('vendorExport', { code: VCODE, kind, ids: ids || undefined });
+    location.href = r.url;   // 開 Google 雲端硬碟的檔案頁，可下載、列印
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = t;
 }
 async function vpAck(id, b) {
   b.disabled = true;

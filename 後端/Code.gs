@@ -49,9 +49,9 @@ function doPost(e) {
 }
 
 // 廠商用的（不用登入，靠回報碼）
-const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_,
+const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, vendorExport: vendorExport_,
   vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_ };
-const USER_ = { me: me_, list: list_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, saveCustom: saveCustom_,
+const USER_ = { me: me_, list: list_, exportFile: exportFile_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
 const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_ };
 
@@ -537,4 +537,102 @@ function trashPhotos_(ids, all, self) {
   const used = {};
   (all || []).forEach(h => { if (h.id !== self) photosOfD_(h.d).forEach(id => { used[id] = 1; }); });
   ids.filter(id => okId_(id) && !used[id]).forEach(id => { const f = findPhoto_(id); if (f) f.setTrashed(true); });
+}
+
+// ══ 匯出：通知單 PDF、清單 Excel（存到雲端硬碟「匯出」資料夾，任何有連結的人可看，7 天後自動丟垃圾桶）══
+function exportFolder_() {
+  const p = props_();
+  if (!p.getProperty('EXPORT_ID')) p.setProperty('EXPORT_ID', DriveApp.getFolderById(p.getProperty('ROOT_ID')).createFolder('匯出').getId());
+  return DriveApp.getFolderById(p.getProperty('EXPORT_ID'));
+}
+function exportFile_(q) {
+  const want = {};
+  (q.ids || []).forEach(id => { want[id] = 1; });
+  return makeExport_(q.kind, defectRows_().filter(h => want[h.id]), q.title, !!q.withData);
+}
+// 廠商：只能匯出自己的（沒指定就是全部未結案）
+function vendorExport_(q) {
+  const v = vendorByCode_(q.code), mine = vendorDefects_(v), want = {};
+  (q.ids || []).forEach(id => { want[id] = 1; });
+  const hs = q.ids ? mine.filter(h => want[h.id]) : mine.filter(h => h.d.status !== 'done');
+  return makeExport_(q.kind, hs, v.name, false);
+}
+function makeExport_(kind, hs, title, withData) {
+  if (!hs.length) throw new Error('沒有可以匯出的缺失');
+  if (hs.length > 40) throw new Error('一次最多 40 筆，請先篩選');
+  hs.sort((a, b) => (a.d.pid + String(a.d.no).padStart(6, '0')).localeCompare(b.d.pid + String(b.d.no).padStart(6, '0')));
+  const pn = {}, vn = {};
+  projects_().forEach(p => { pn[p.id] = p.name; });
+  vendors_().forEach(v => { vn[v.id] = v; });
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMdd-HHmm');
+  const base = '缺失改善' + (kind === 'xlsx' ? '清單' : '通知單') + '_' + String(title || '').replace(/[\\/:*?"<>|]/g, '').slice(0, 20) + '_' + stamp;
+  const blob = kind === 'xlsx' ? xlsxBlob_(hs, pn, vn, base + '.xlsx') : pdfBlob_(hs, pn, vn, base + '.pdf');
+  const folder = exportFolder_();
+  // 7 天前的匯出檔丟垃圾桶
+  const old = Date.now() - 7 * 864e5, it = folder.getFiles();
+  while (it.hasNext()) { const f = it.next(); if (f.getDateCreated().getTime() < old) f.setTrashed(true); }
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const out = { url: file.getUrl(), name: blob.getName() };
+  if (withData) out.data = Utilities.base64Encode(blob.getBytes());
+  return out;
+}
+const h_ = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const roc_ = s => s ? (Number(s.slice(0, 4)) - 1911) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10) : '';
+const locOf_ = d => [d.bldg, d.floor, d.spot].filter(String).join(' ');
+function imgs_(ids) {
+  return (ids || []).slice(0, 6).map(id => {
+    const f = okId_(id) && findPhoto_(id);
+    return f ? '<img src="data:image/jpeg;base64,' + Utilities.base64Encode(f.getBlob().getBytes()) + '">' : '';
+  }).join('');
+}
+function pdfBlob_(hs, pn, vn, name) {
+  const css = 'body{font-family:sans-serif;font-size:12px;color:#000}h2{text-align:center;letter-spacing:6px;margin:0 0 4px}.no{text-align:center;margin-bottom:10px}'
+    + 'table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:5px 6px;vertical-align:top;text-align:left}th{background:#eef1f5;width:80px;white-space:nowrap}'
+    + 'img{width:160px;height:120px;border:1px solid #999;margin:2px}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}.foot{font-size:11px;margin-top:6px}.sign td{height:46px}.c{text-align:center}';
+  const body = hs.map(h => {
+    const d = h.d, v = vn[d.vid], fix = (d.fixes || []).slice(-1)[0], back = (d.reviews || []).filter(r => !r.ok).slice(-1)[0], last = (d.reviews || []).slice(-1)[0];
+    return '<div class="pg"><h2>缺失改善通知單</h2><div class="no">' + h_(pn[d.pid]) + '　　編號：No. ' + String(d.no).padStart(4, '0') + '　　狀態：' + STATUS[d.status] + '</div><table>'
+      + '<tr><th>受通知廠商</th><td>' + h_(v ? v.name : '') + '</td><th>發單日期</th><td>' + roc_(String(d.created || '').slice(0, 10)) + '</td></tr>'
+      + '<tr><th>缺失分類</th><td>' + h_(d.cat) + (d.trade ? '／' + h_(d.trade) : '') + '</td><th>改善期限</th><td><b>' + roc_(d.due) + '</b></td></tr>'
+      + '<tr><th>位置</th><td colspan="3">' + h_(locOf_(d)) + '</td></tr>'
+      + '<tr><th>缺失說明</th><td colspan="3">' + h_(d.note) + '</td></tr>'
+      + '<tr><th>改善要求</th><td colspan="3">' + h_(d.req || '請依規範改善，完成後拍照回報，經工地複查合格始得結案。') + '</td></tr>'
+      + (back ? '<tr><th>複查不合格</th><td colspan="3">' + h_(back.note) + '（' + h_(String(back.at || '').slice(0, 10)) + '）</td></tr>' : '')
+      + '<tr><th>缺失照片</th><td colspan="3">' + (imgs_(d.photos) || '—') + '</td></tr>'
+      + '<tr><th>改善後照片</th><td colspan="3">' + (fix ? imgs_(fix.photos) + (fix.note ? '<div>' + h_(fix.note) + '</div>' : '') : '<div style="height:50px"></div>') + '</td></tr></table>'
+      + '<table class="sign" style="margin-top:8px"><tr><th class="c">開單人</th><th class="c">廠商簽收</th><th class="c">複查人</th><th class="c">結案日期</th></tr>'
+      + '<tr><td>' + h_(d.by) + '</td><td></td><td>' + (last && last.ok ? h_(last.by) : '') + '</td><td>' + (d.status === 'done' && last ? roc_(String(last.at || '').slice(0, 10)) : '') + '</td></tr></table>'
+      + '<div class="foot">※ 逾期未改善者，依合約規定辦理。　※ 本單一式兩聯，一聯廠商留存。</div></div>';
+  }).join('');
+  return HtmlService.createHtmlOutput('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>').getAs('application/pdf').setName(name);
+}
+// Excel（xlsx）：自己組檔案，不用外部函式庫
+function xlsxBlob_(hs, pn, vn, name) {
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  const col = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const head = ['編號', '建案', '廠商', '位置', '大分類', '工項', '缺失說明', '改善要求', '改善期限', '狀態', '開單日期', '開單人', '廠商回報', '缺失照片'];
+  const rows = [['缺失改善清單　' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')], head].concat(hs.map(h => {
+    const d = h.d, v = vn[d.vid], fix = (d.fixes || []).slice(-1)[0];
+    return [String(d.no).padStart(4, '0'), pn[d.pid] || '', v ? v.name : '', locOf_(d), d.cat, d.trade, d.note, d.req, d.due, STATUS[d.status],
+      String(d.created || '').slice(0, 10), d.by, fix ? (fix.at + ' ' + (fix.note || '')) : '', (d.photos || []).length + ' 張'];
+  }));
+  const widths = [8, 14, 14, 18, 10, 10, 34, 30, 12, 9, 12, 10, 26, 9];
+  let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'
+    + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>';
+  rows.forEach((r, ri) => {
+    x += '<row r="' + (ri + 1) + '">' + r.map((c, ci) => '<c r="' + col(ci) + (ri + 1) + '" t="inlineStr" s="' + (ri === 0 ? 2 : ri === 1 ? 1 : 0) + '"><is><t xml:space="preserve">' + esc(c) + '</t></is></c>').join('') + '</row>';
+  });
+  x += '</sheetData><pageSetup orientation="landscape"/></worksheet>';
+  const X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const f = (n, t) => Utilities.newBlob(t, 'application/xml', n);
+  const files = [
+    f('[Content_Types].xml', X + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'),
+    f('_rels/.rels', X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+    f('xl/workbook.xml', X + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="缺失清單" sheetId="1" r:id="rId1"/></sheets></workbook>'),
+    f('xl/_rels/workbook.xml.rels', X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'),
+    f('xl/styles.xml', X + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="11"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="14"/><name val="Microsoft JhengHei"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8EEF4"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right><top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom></border></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="3"><xf fontId="0" borderId="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf fontId="1" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1"/><xf fontId="2" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'),
+    f('xl/worksheets/sheet1.xml', x),
+  ];
+  return Utilities.zip(files, name).setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }

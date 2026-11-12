@@ -7,6 +7,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm'), http = req
 function makeEnv() {
   const toBytes = s => Array.from(Buffer.from(s, 'utf8')).map(b => (b > 127 ? b - 256 : b));
   const toBuf = x => (typeof x === 'string' ? Buffer.from(x, 'utf8') : Buffer.from(x.map(b => b & 255)));
+  const blob = (bytes, name) => { const b = { name, getBytes: () => bytes, getDataAsString: () => toBuf(bytes).toString('utf8'), getName: () => b.name, setName(n) { b.name = n; return b; }, setContentType() { return b; } }; return b; };
   const Utilities = {
     DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
     computeDigest: (alg, s) => Array.from(crypto.createHash(alg).update(s, 'utf8').digest()).map(b => (b > 127 ? b - 256 : b)),
@@ -15,7 +16,9 @@ function makeEnv() {
     base64EncodeWebSafe: x => toBuf(x).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
     base64Decode: s => Array.from(Buffer.from(s, 'base64')).map(b => (b > 127 ? b - 256 : b)),
     base64DecodeWebSafe: s => { if (!/^[A-Za-z0-9_=-]*$/.test(s)) throw new Error('bad'); return Array.from(Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64')).map(b => (b > 127 ? b - 256 : b)); },
-    newBlob: (bytes, type, name) => ({ getBytes: () => bytes, getDataAsString: () => toBuf(bytes).toString('utf8'), name }),
+    newBlob: (bytes, type, name) => blob(typeof bytes === 'string' ? Array.from(Buffer.from(bytes, 'utf8')) : bytes, name),
+    // 假的 zip：把檔名和內容串起來，測試只檢查有沒有產生
+    zip: (blobs, name) => blob(Array.from(Buffer.from(blobs.map(b => b.getName() + ' ' + b.getDataAsString()).join(' --- '), 'utf8')), name),
     getUuid: () => crypto.randomUUID(),
     formatDate: (d, tz, f) => { const s = new Date(d.getTime() + 8 * 3600e3).toISOString(); return f === 'yyyy-MM-dd' ? s.slice(0, 10) : s.slice(0, 16).replace('T', ' '); },
   };
@@ -54,15 +57,18 @@ function makeEnv() {
     const id = 'F' + Object.keys(folders).length;
     const f = {
       getId: () => id, createFolder: n => makeFolder(n),
-      createFile(blob) { const file = { id: 'f' + files.length, name: blob.name, bytes: blob.getBytes(), trashed: false, folder: id }; file.getBlob = () => ({ getBytes: () => file.bytes }); file.isTrashed = () => file.trashed; file.setTrashed = t => { file.trashed = t; }; files.push(file); return file; },
+      getFiles() { const hit = files.filter(x => x.folder === id && !x.trashed); let i = 0; return { hasNext: () => i < hit.length, next: () => hit[i++] }; },
+      createFile(blob) { const file = { id: 'f' + files.length, name: blob.name, bytes: blob.getBytes(), trashed: false, folder: id, created: new Date(), getDateCreated: () => file.created, getUrl: () => 'https://drive.example/' + file.id, setSharing(a, p) { file.sharing = a + '/' + p; } }; file.getBlob = () => ({ getBytes: () => file.bytes }); file.isTrashed = () => file.trashed; file.setTrashed = t => { file.trashed = t; }; files.push(file); return file; },
       getFilesByName(n) { const hit = files.filter(x => x.folder === id && x.name === n); let i = 0; return { hasNext: () => i < hit.length, next: () => hit[i++] }; },
     };
     folders[id] = f; return f;
   }
-  const DriveApp = { createFolder: makeFolder, getFolderById: id => folders[id], getFileById: () => ({ moveTo() {} }) };
+  const DriveApp = { createFolder: makeFolder, getFolderById: id => folders[id], getFileById: () => ({ moveTo() {} }), Access: { ANYONE_WITH_LINK: 'anyone' }, Permission: { VIEW: 'view' } };
+  // 假的 HTML 轉 PDF：內容就是 HTML（測試可以檢查文字）
+  const HtmlService = { createHtmlOutput: h => ({ getAs: () => blob(Array.from(Buffer.from(h, 'utf8')), 'x.pdf') }) };
   const store = {}, cache = {};
   const ctx = {
-    Utilities, SpreadsheetApp, DriveApp, console,
+    Utilities, SpreadsheetApp, DriveApp, HtmlService, console,
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => store[k] || null, setProperty: (k, v) => { store[k] = v; } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
