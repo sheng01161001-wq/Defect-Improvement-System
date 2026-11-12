@@ -51,7 +51,7 @@ function doPost(e) {
 // 廠商用的（不用登入，靠回報碼）
 const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, vendorExport: vendorExport_,
   vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_ };
-const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, saveCustom: saveCustom_,
+const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, deleteVendor: deleteVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
 const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_, resetData: resetData_ };
 
@@ -285,6 +285,17 @@ function vendors_() {
 }
 const pubVendor_ = v => ({ id: v.id, name: v.name, cat: v.cat, trades: v.trades, contact: v.contact, phone: v.phone, code: v.code, disabled: v.disabled, pids: v.pids });
 const newCode_ = () => (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 24);
+// 刪除廠商：完全沒有缺失用到才能刪（有用到的要「從建案移除」或後台「停用」，舊紀錄才看得到廠商名稱）
+function deleteVendor_(q) {
+  return withLock_(() => {
+    const v = vendors_().find(x => x.id === q.id);
+    if (!v) return {};
+    const n = defectRows_().filter(h => h.d.vid === v.id).length;
+    if (n) throw new Error(`「${v.name}」還有 ${n} 筆缺失紀錄，不能整個刪除，可以從建案移除或請後台停用`);
+    sheet_('廠商').deleteRow(v.row);
+    return {};
+  });
+}
 // 工地人員可新增、修改廠商（含加入／移出建案）；停用和換回報碼只有後台能做
 function saveVendor_(q, u) {
   return withLock_(() => {

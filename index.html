@@ -134,7 +134,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="data.js"></script>
 <script>
 'use strict';
-const VERSION = 'v11';
+const VERSION = 'v12';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -1204,7 +1204,8 @@ VIEWS.vendors = () => {
     return `<div class="card"><h3>${catTag(c)}</h3>${vs.length ? vs.map(v => {
       const open = ds.filter(d => d.vid === v.id && OPEN(d.status)), late = open.filter(isLate).length;
       return `<div class="user-row" onclick="go({name:'vendor',id:'${v.id}'})"><div class="grow"><b>${esc(v.name)}</b>${v.disabled ? ' <span class="tag pend">停用</span>' : ''}
-        <div class="muted">${esc(v.trades.join('、') || '—')}</div></div><div style="text-align:right;font-size:14px">${open.length ? `未結案 ${open.length}` : '<span class="muted">無</span>'}${late ? `<br><span class="red">逾期 ${late}</span>` : ''}</div></div>`;
+        <div class="muted">${esc(v.trades.join('、') || '—')}</div></div><div style="text-align:right;font-size:14px">${open.length ? `未結案 ${open.length}` : '<span class="muted">無</span>'}${late ? `<br><span class="red">逾期 ${late}</span>` : ''}</div>
+        <button class="btn ghost small" style="margin-left:8px" onclick="event.stopPropagation();editVendor('${v.id}')">✏️ 修改</button></div>`;
     }).join('') : '<div class="muted">這個建案還沒有廠商</div>'}</div>`;
   }).join('') + `<button class="btn block" onclick="editVendor(null)">＋ 新增廠商</button>
     ${others.length ? `<button class="btn ghost block" onclick="vEdit=null;pickOtherVendor()">從其他建案加入現有廠商（${others.length} 家）</button>` : ''}`;
@@ -1221,7 +1222,8 @@ VIEWS.vendor = () => {
       <tr><th>工項</th><td>${esc(v.trades.join('、') || '—')}</td></tr>
       <tr><th>建案</th><td>${esc(state.projects.filter(x => inProj(v, x.id)).map(x => x.name).join('、') || '（沒有加入建案）')}</td></tr>
       ${v.contact ? `<tr><th>聯絡人</th><td>${esc(v.contact)}</td></tr>` : ''}
-      ${v.phone ? `<tr><th>電話</th><td><a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a></td></tr>` : ''}</table></div>
+      ${v.phone ? `<tr><th>電話</th><td><a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a></td></tr>` : ''}</table>
+      <div class="row" style="margin-top:10px"><button class="btn ghost grow" onclick="editVendor('${v.id}')">✏️ 修改資料</button><button class="btn ghost grow" style="color:#c92a2a" onclick="delVendor('${v.id}')">🗑 刪除</button></div></div>
     <div class="card"><h3>廠商專屬回報連結</h3>
       <div class="muted">廠商點開不用登入，就能看到自己所有的缺失、回傳改善照片。連結不要傳給別人。</div>
       ${v.code ? `<button class="btn line block" onclick="sendVendorList('${v.id}')">傳 LINE：未結案清單＋連結</button>
@@ -1262,6 +1264,7 @@ function drawVendorSheet() {
     <label class="f">電話</label><input type="tel" value="${esc(v.phone)}" oninput="vEdit.phone=this.value">
     ${!v._new && isAdmin() ? `<label style="display:block;margin-top:12px"><input type="checkbox" ${v.disabled ? 'checked' : ''} onchange="vEdit.disabled=this.checked"> 停用（連結失效、不再出現在選單）</label>` : ''}
     <button class="btn block" id="vSave" onclick="saveVendor()">儲存</button>
+    ${!v._new && view.name !== 'edit' ? `<button class="btn ghost block" style="color:#c92a2a" onclick="delVendor('${v.id}')">🗑 刪除這家廠商</button>` : ''}
     <button class="btn ghost block" onclick="closeLayer();if(view.name==='edit')render()">取消</button>`);
 }
 function togPid(id) { const a = vEdit.pids, i = a.indexOf(id); if (i < 0) a.push(id); else a.splice(i, 1); drawVendorSheet(); }
@@ -1298,6 +1301,30 @@ async function saveVendor(resetCode) {
     if (!v._quiet) toast(resetCode ? '已換新連結，記得把新連結傳給廠商' : '廠商已存');
     render();
   } catch (e) { if (!v._quiet) toast(e.message.includes('網路') ? '新增廠商要有網路' : e.message); if (b) b.disabled = false; }
+}
+// 刪除廠商：這個建案還有未結案 → 先改派；有缺失紀錄或在別的建案 → 只從這個建案移除；都沒有 → 整個刪掉
+async function delVendor(id) {
+  const v = vendorOf(id), p = curP();
+  if (!v) return;
+  const open = projDefects().filter(d => d.vid === id && OPEN(d.status)).length;
+  if (open) { toast(`「${v.name}」在這個建案還有 ${open} 筆未結案，先把缺失改派給別家再刪`); return; }
+  const used = Object.values(state.defects).some(d => d.vid === id);
+  const otherP = (v.pids || []).filter(x => !p || x !== p.id);
+  if (p && inProj(v, p.id) && (used || otherP.length)) {
+    if (!confirm(`把「${v.name}」從「${p.name}」移除？
+${otherP.length ? '其他建案還會用到這家，' : ''}舊的缺失紀錄會保留廠商名稱。`)) return;
+    vEdit = clone(v); vEdit._base = (v.pids || []).slice(); vEdit.pids = vEdit._base.filter(x => x !== p.id); vEdit._quiet = true;
+    await saveVendor();
+    toast('已從這個建案移除');
+  } else {
+    if (used) { toast(`「${v.name}」有缺失紀錄，不能整個刪除${isAdmin() ? '，可以在修改裡勾「停用」' : '，請後台停用'}`); return; }
+    if (!confirm(`刪除廠商「${v.name}」？刪了就不能復原。`)) return;
+    try { await api('deleteVendor', { id }); }
+    catch (e) { toast(e.message); return; }
+    state.vendors = state.vendors.filter(x => x.id !== id);
+    persistNow(); closeLayer(); toast('已刪除');
+  }
+  if (view.name === 'vendor' && view.id === id) goBack(); else render();
 }
 function resetCode(id) {
   if (!confirm('換新連結後，舊連結就不能用了。確定？')) return;

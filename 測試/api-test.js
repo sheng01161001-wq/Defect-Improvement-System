@@ -242,6 +242,15 @@ ok(LP.name === '冀晨2' && LP.loc && LP.loc.r === 2, '只改名不會清掉位�
 okCall({ action: 'saveProject', token: TA, project: { id: 'projnew', name: '新案位置', loc: { n: 5 } } }, '新建案帶位置規劃');
 ok(okCall({ action: 'list', token: TB }, '讀').projects.find(p => p.id === 'projnew').loc.n === 5, '新建案位置規劃存對列');
 
+// 刪除廠商
+const VD = okCall({ action: 'saveVendor', token: TB, vendor: { id: 'vdel01', name: '打錯的廠商', cat: '結構體', trades: [], pids: ['proj01'] } }, '新增要刪的廠商').vendor;
+okCall({ action: 'saveDefect', token: TB, defect: Object.assign({}, D, { id: 'vdd0001', photos: [], vid: 'vdel01' }), baseV: 0 }, '開一筆給它');
+badCall({ action: 'deleteVendor', token: TB, id: 'vdel01' }, '有缺失的廠商整個刪除');
+okCall({ action: 'saveVendor', token: TB, vendor: { id: 'vdel02', name: '沒用到的廠商', cat: '結構體', trades: [], pids: ['proj01'] } }, '新增沒用到的廠商');
+badCall({ action: 'deleteVendor', id: 'vdel02' }, '沒登入刪廠商');
+okCall({ action: 'deleteVendor', token: TB, id: 'vdel02' }, '工地人員刪沒用到的廠商');
+ok(!okCall({ action: 'list', token: TB }, '讀').vendors.some(v => v.id === 'vdel02') && VD.id, '廠商刪掉了');
+
 // 歸零
 badCall({ action: 'resetData', token: TB, confirm: '歸零' }, '工地人員歸零');
 badCall({ action: 'resetData', token: TA, confirm: '好' }, '沒打歸零');
