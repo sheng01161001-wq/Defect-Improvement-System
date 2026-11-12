@@ -141,7 +141,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v19';
+const VERSION = 'v20';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -471,7 +471,6 @@ async function waitUploaded(ids, ms) {
 }
 async function sync() {
   if (!auth || syncing) return;
-  if (pulling) { scheduleSync(1500); return; }
   if (!pendingCount()) { syncErr = ''; setSyncUI(); return; }
   syncing = true; setSyncUI();
   // 伺服器拒絕的（不是網路問題）就略過，不要卡住後面的資料
@@ -485,6 +484,7 @@ async function sync() {
     }
     while (outbox.del.length) {
       await skipBad(() => api('deleteDefect', { id: outbox.del[0] }));
+      if (touched) touched.add(outbox.del[0]);
       outbox.del.shift(); await persistNow();
     }
     // 缺失先傳：雲端後端每次來回約 2 秒，3 筆一起傳
@@ -493,6 +493,7 @@ async function sync() {
       if (n === undefined) return;
       if (!d) { delete outbox.d[id]; return; }
       const r = await skipBad(() => api('saveDefect', { defect: payload(d), baseV: d.v || 0 }));
+      if (touched) touched.add(id);
       if (!r) { delete outbox.d[id]; needPull = true; }
       else if (r.conflict) { state.defects[id] = r.defect; delete outbox.d[id]; toast(r.err + '，請再確認一次'); }
       else if (r.gone) { delete state.defects[id]; delete outbox.d[id]; toast(r.err); }
@@ -538,14 +539,18 @@ async function cleanPhotos() {
   for (const id of await idbKeys('photos')) if (!keep.has(id)) { delete photoCache[id]; await idbDel('photos', id); }
 }
 // 從雲端拿最新資料（還沒上傳的修改蓋在上面）
+let touched = null;   // 讀取全部資料期間，上傳或刪掉的缺失
 async function pull(quiet) {
   if (!auth) return;
   if (pulling || syncing) { pullAgain = true; return; }
-  pulling = true;
+  pulling = true; touched = new Set();
   try {
     const r = await api('list');
     const defects = {};
     r.defects.forEach(d => { defects[d.id] = d; });
+    // 手機上比較新的留著：還沒上傳的、讀取時剛傳上去的（版本比較新）、讀取時剛刪掉的
+    Object.values(state.defects).forEach(d => { const o = defects[d.id]; if (o && (d.v || 0) > (o.v || 0)) defects[d.id] = d; });
+    touched.forEach(id => { if (state.defects[id]) { if (!defects[id]) defects[id] = state.defects[id]; } else delete defects[id]; });
     Object.keys(outbox.d).forEach(id => { if (state.defects[id]) defects[id] = state.defects[id]; });
     outbox.del.forEach(id => { delete defects[id]; });
     // 共用工項／常用語：雲端的＋還沒上傳的修改
@@ -555,7 +560,7 @@ async function pull(quiet) {
     lastPull = Date.now();
     await persistNow();
   } catch (e) { if (!quiet) toast(e.message); }
-  pulling = false;
+  pulling = false; touched = null;
   render(true);
   if (pullAgain) { pullAgain = false; setTimeout(() => pull(true), 100); }
   else cleanPhotos();
@@ -767,7 +772,9 @@ VIEWS.home = () => {
         <b style="font-size:18px;white-space:nowrap">還有 ${x.n} 件</b><span class="muted">›</span></div>`;
     }).join('') : '<div class="muted">目前沒有未結案的缺失 👍</div>'}</div>`;
 };
-function newDefect() { startDraft(null); go({ name: 'edit' }); }
+function newDefect() { startDraft(null); go({ name: 'edit' }); warmUp(); }
+let lastWarm = 0;
+function warmUp() { if (SOLO || !auth || Date.now() - lastWarm < 60e3) return; lastWarm = Date.now(); api('me').catch(() => {}); }
 // 通知廠商的狀態（只看待改善／改善中）：none 未通知、stale 有更新未通知、sent 已通知
 function noticeOf(d) {
   if (d.status !== 'wait' && d.status !== 'doing') return null;
@@ -1037,7 +1044,7 @@ async function saveDraft(withLine) {
   toast(isNew ? (outs.length > 1 ? `已存檔，派給 ${outs.length} 家廠商` : '已存檔') : '已修改');
   if (withLine) {
     // 先上傳，廠商點連結才看得到；上傳完跳出按鈕（手機瀏覽器要「按一下」才能開 LINE）
-    sheet('<div class="empty">存檔中…</div>');
+    sheet('<div class="empty">存檔中（傳到雲端拿編號）…</div>');
     if (!await waitUploaded(outs.map(o => o.id))) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，到總覽按「傳 PDF 給廠商」'); return; }
     notifyStart(outs.map(o => ({ vid: o.vid, ids: [o.id] })));
   }
