@@ -58,6 +58,8 @@ const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: sav
 function handle_(q) {
   if (!props_().getProperty('SS_ID')) 初始化();
   const a = q && q.action;
+  // 廠商回報連結已停用（2026-11-12 使用者決定）；指令碼屬性 VENDOR_PORTAL=1 才打開（測試用）
+  if (PUBLIC_[a] && /^vendor/.test(a) && props_().getProperty('VENDOR_PORTAL') !== '1') throw new Error('廠商回報連結已停用，有問題請直接聯絡工地');
   if (PUBLIC_[a]) return Object.assign({ ok: true }, PUBLIC_[a](q));
   const user = auth_(q.token);
   if (!user) return { ok: false, auth: true, err: '請重新登入' };
@@ -642,16 +644,16 @@ function pdfBlob_(hs, pn, vn, name) {
     + 'table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:5px 6px;vertical-align:top;text-align:left}th{background:#eef1f5;width:80px;white-space:nowrap}'
     + 'img{width:160px;height:120px;border:1px solid #999;margin:2px}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}.foot{font-size:11px;margin-top:6px}.sign td{height:46px}.c{text-align:center}';
   const body = hs.map(h => {
-    const d = h.d, v = vn[d.vid], fix = (d.fixes || []).slice(-1)[0], back = (d.reviews || []).filter(r => !r.ok).slice(-1)[0], last = (d.reviews || []).slice(-1)[0];
+    const d = h.d, v = vn[d.vid], fix = (d.fixes || []).slice(-1)[0], okRv = (d.reviews || []).filter(r => r.ok).slice(-1)[0], back = (d.reviews || []).filter(r => !r.ok).slice(-1)[0], last = (d.reviews || []).slice(-1)[0];
     return '<div class="pg"><h2>缺失改善通知單</h2><div class="no">' + h_(pn[d.pid]) + '　　編號：No. ' + String(d.no).padStart(4, '0') + '　　狀態：' + STATUS[d.status] + '</div><table>'
       + '<tr><th>受通知廠商</th><td>' + h_(v ? v.name : '') + '</td><th>發單日期</th><td>' + roc_(String(d.created || '').slice(0, 10)) + '</td></tr>'
       + '<tr><th>缺失分類</th><td>' + h_(d.cat) + (d.trade ? '／' + h_(d.trade) : '') + '</td><th>改善期限</th><td><b>' + roc_(d.due) + '</b></td></tr>'
       + '<tr><th>位置</th><td colspan="3">' + h_(locOf_(d)) + '</td></tr>'
       + '<tr><th>缺失說明</th><td colspan="3">' + h_(d.note) + '</td></tr>'
-      + '<tr><th>改善要求</th><td colspan="3">' + h_(d.req || '請依規範改善，完成後拍照回報，經工地複查合格始得結案。') + '</td></tr>'
+      + '<tr><th>改善要求</th><td colspan="3">' + h_(d.req || '請依規範改善，完成後通知工地複查，合格始得結案。') + '</td></tr>'
       + (back ? '<tr><th>複查不合格</th><td colspan="3">' + h_(back.note) + '（' + h_(String(back.at || '').slice(0, 10)) + '）</td></tr>' : '')
       + '<tr><th>缺失照片</th><td colspan="3">' + (imgs_(d.photos) || '—') + '</td></tr>'
-      + '<tr><th>改善後照片</th><td colspan="3">' + (fix ? imgs_(fix.photos) + (fix.note ? '<div>' + h_(fix.note) + '</div>' : '') : '<div style="height:50px"></div>') + '</td></tr></table>'
+      + '<tr><th>改善後照片</th><td colspan="3">' + (fix ? imgs_(fix.photos) + (fix.note ? '<div>' + h_(fix.note) + '</div>' : '') : okRv && (okRv.photos || []).length ? imgs_(okRv.photos) : '<div style="height:50px"></div>') + '</td></tr></table>'
       + '<table class="sign" style="margin-top:8px"><tr><th class="c">開單人</th><th class="c">廠商簽收</th><th class="c">複查人</th><th class="c">結案日期</th></tr>'
       + '<tr><td>' + h_(d.by) + '</td><td></td><td>' + (last && last.ok ? h_(last.by) : '') + '</td><td>' + (d.status === 'done' && last ? roc_(String(last.at || '').slice(0, 10)) : '') + '</td></tr></table>'
       + '<div class="foot">※ 逾期未改善者，依合約規定辦理。　※ 本單一式兩聯，一聯廠商留存。</div></div>';

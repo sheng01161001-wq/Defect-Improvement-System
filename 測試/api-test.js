@@ -70,6 +70,8 @@ okCall({ action: 'saveDefect', token: tb, defect: x, baseV: r2.v }, '廠商移�
 okCall({ action: 'saveVendor', token: tb, vendor: Object.assign({}, V2, { pids: ['proj01'] }) }, '廠商2再加回建案');
 
 // 廠商
+badCall({ action: 'vendorList', code: V.code }, '廠商回報連結預設是關的');
+env.props_().setProperty('VENDOR_PORTAL', '1');   // 下面測舊的廠商回報邏輯
 badCall({ action: 'vendorList', code: 'x'.repeat(24) }, '亂給回報碼');
 let VL = okCall({ action: 'vendorList', code: V.code }, '廠商看清單');
 ok(VL.defects.length === 1 && VL.defects[0].id === 'def0001' && VL.vendor.name === '大成營造', '廠商只看到自己的');
