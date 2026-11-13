@@ -143,7 +143,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v23';
+const VERSION = 'v24';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -811,7 +811,13 @@ function startDraft(id) {
   draft = { id: uid(), pid: curP() ? curP().id : '', cat: last.cat || '結構體', trade: '', vid: '', bldg: last.bldg || '', floor: last.floor || '', spot: '',
     note: '', req: '', photos: [], due: addDays(7), dueN: 7, status: 'wait', reviews: [], _orig: [] };
 }
-function keepDraft() { draftDirty = true; if (!view.id) localStorage.setItem('dfi_draft', JSON.stringify(draft)); }
+function keepDraft() { draftDirty = true; if (!view.id) { draft._t = Date.now(); localStorage.setItem('dfi_draft', JSON.stringify(draft)); } }
+// 剛剛（30 分鐘內）開單到一半（iPhone 拍照時 App 可能被關掉重開）才直接回到新增畫面；放久了就從首頁開始
+function resumeDraft() {
+  let s = null; try { s = JSON.parse(localStorage.getItem('dfi_draft') || 'null'); } catch (e) {}
+  if (!s || !(Date.now() - (s._t || 0) < 30 * 60e3)) return;
+  stack.push({ name: 'home' }); view = { name: 'edit' }; startDraft(null);
+}
 // 廠商依建案分：同一家可以在好幾個建案（回報連結共用）
 const inProj = (v, pid) => (v.pids || []).includes(pid);
 const projVendors = () => { const p = curP(); return p ? state.vendors.filter(v => inProj(v, p.id)) : []; };
@@ -1002,7 +1008,7 @@ async function saveDraft(withLine) {
   if (multi && !vids.length) { toast('請勾選要派的廠商'); return; }
   if (withLine && !vids[0]) { toast('請先選廠商'); return; }
   const newPh = d.photos.filter(id => !(d._orig || []).includes(id));
-  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV; delete out._multi; delete out.vids;
+  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV; delete out._multi; delete out.vids; delete out._t;
   if (isNew) { out.v = 0; out.by = auth.me.name; out.byUser = auth.me.user; out.created = ''; }
   else { const old = state.defects[d.id]; if (!old) { toast('這筆缺失已被刪除'); return; } SERVER_KEYS.forEach(k => { out[k] = old[k]; }); out.v = old.v; out.reviews = old.reviews; out.status = old.status; }
   // 派給好幾家：每家各開一張單（同一組 grp、共用照片）
@@ -1660,7 +1666,7 @@ function renderVendorPortal() {
     if (saved) state = saved;
     if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
     fixLoaded();
-    if (localStorage.getItem('dfi_draft')) { stack.push({ name: 'home' }); view = { name: 'edit' }; startDraft(null); }
+    resumeDraft();
     render();
     soloStart(true).then(() => { if (pendingCount()) sync(); });
   } else if (auth) {
@@ -1668,8 +1674,8 @@ function renderVendorPortal() {
     if (saved) state = saved;
     if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
     fixLoaded(); migrateLocalCustoms();
-    // 有沒存完的新缺失 → 直接回到新增畫面
-    if (localStorage.getItem('dfi_draft')) { stack.push({ name: 'home' }); view = { name: 'edit' }; startDraft(null); }
+    // 剛剛有沒存完的新缺失 → 直接回到新增畫面
+    resumeDraft();
     render();
     pull(true);
   } else render();
