@@ -141,7 +141,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v21';
+const VERSION = 'v22';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -172,7 +172,6 @@ const isLate = d => (d.status === 'wait' || d.status === 'doing') && d.due < tod
 const locText = d => [d.bldg, d.floor, d.spot].filter(Boolean).join(' ');
 const noText = d => d.no ? '#' + String(d.no).padStart(4, '0') : '（未上傳）';
 const stTag = d => `<span class="tag s-${d.status}">${ST[d.status]}</span>`;
-const catTag = c => `<span class="tag c-${esc(c)}">${esc(c)}</span>`;
 function dueText(d, bare) {
   const L = bare ? '' : '期限 ';
   if (!OPEN(d.status)) return L + md(d.due);
@@ -767,7 +766,7 @@ VIEWS.home = () => {
     <div class="card"><h3>各廠商還有幾件（共 ${open.length} 件未結案）</h3>${vs.length ? vs.map(([vid, x]) => {
       const v = vendorOf(vid);
       return `<div class="user-row" onclick="go({name:'list',vid:'${vid}',st:'open'})">
-        <div class="grow"><b>${esc(v ? v.name : '未指定廠商')}</b> ${v ? vCatTags(v) : ''}
+        <div class="grow"><b>${esc(v ? v.name : '未指定廠商')}</b> ${v ? tradeTag(vTrade(v)) : ''}
           <div class="muted">${x.un && vid ? `<span style="color:#e8590c;font-weight:bold">🔔 ${x.un} 筆未通知</span>　` : ''}${x.late ? `<span class="red">逾期 ${x.late}</span>　` : ''}${x.check ? `待複查 ${x.check}` : ''}</div></div>
         <b style="font-size:18px;white-space:nowrap">還有 ${x.n} 件</b><span class="muted">›</span></div>`;
     }).join('') : '<div class="muted">目前沒有未結案的缺失 👍</div>'}</div>`;
@@ -793,7 +792,7 @@ function itemHTML(d) {
   return `<div class="item ${isLate(d) ? 'late' : ''}" id="it-${d.id}" onclick="go({name:'detail',id:'${d.id}'})">
     <div class="thumb">${d.photos && d.photos[0] ? imgTag(d.photos[0]) : '📝'}</div>
     <div class="grow"><div class="it-t">${noText(d)}　${esc(locText(d))}</div>
-    <div class="it-m">${catTag(d.cat)}${stTag(d)}${noticeTag(d)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}${esc(d.trade)}</div>
+    <div class="it-m">${stTag(d)}${noticeTag(d)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}${esc(d.trade)}</div>
     <div class="it-m" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.note)}</div>
     <div class="it-m">${esc(vName(d.vid))}　${dueText(d)}</div></div></div>`;
 }
@@ -814,13 +813,26 @@ function keepDraft() { draftDirty = true; if (!view.id) localStorage.setItem('df
 // 廠商依建案分：同一家可以在好幾個建案（回報連結共用）
 const inProj = (v, pid) => (v.pids || []).includes(pid);
 const projVendors = () => { const p = curP(); return p ? state.vendors.filter(v => inProj(v, p.id)) : []; };
-// 廠商的分類可以好幾個（舊資料只有 cat）
+// v22 不分大分類：開單只選「廠商」，缺失說明照廠商的工項帶。d.cat（結構體／室內／室外）只留在資料裡給後端，用工項自動決定。
 const vCats = v => (v.cats && v.cats.length ? v.cats : [v.cat]);
-const inCat = (v, c) => vCats(v).includes(c);
-const vCatTags = v => vCats(v).map(catTag).join('');
-function vendorsFor(cat) { return projVendors().filter(v => !v.disabled && inCat(v, cat)); }
-// 廠商依工項歸類：選了水電就只列做水電的廠商（不管登記在哪個大分類）
-const vendorsForTrade = t => projVendors().filter(v => !v.disabled && (v.trades || []).includes(t));
+const vTrade = v => (v && v.trades && v.trades[0]) || '';
+const tradeTag = t => (t ? `<span class="tag" style="background:#8a7f74">${esc(t)}</span>` : '');
+const BASE_TRADES = [...new Set(CATS.flatMap(c => Object.keys(TRADES[c])))].filter(t => t !== '其他');
+// 全部工項：內建的＋大家加的＋廠商身上有的，「其他」放最後
+const allTrades = () => [...new Set(BASE_TRADES.concat((state.customs || []).filter(c => c.kind === 'trade').map(c => c.text), state.vendors.map(vTrade).filter(Boolean)))].filter(t => t !== '其他').concat(['其他']);
+function catOfTrade(t, v) {
+  const c = CATS.find(x => (TRADES[x] || {})[t]);
+  if (c) return c;
+  const cu = (state.customs || []).find(x => x.kind === 'trade' && x.text === t);
+  if (cu && CATS.includes(cu.key)) return cu.key;
+  return (v && CATS.includes(vCats(v)[0]) && vCats(v)[0]) || '結構體';
+}
+// 這個工項的常用缺失：三類合併＋大家加的（加的記在「分類|工項」底下）
+function phrasesOf(t) {
+  const base = [...new Set(CATS.flatMap(c => (TRADES[c] || {})[t] || []))];
+  const mine = (state.customs || []).filter(c => c.kind === 'phrase' && c.key.split('|')[1] === t && !base.includes(c.text));
+  return { base, mine };
+}
 VIEWS.edit = () => {
   const p = curP();
   hdr(view.id ? '修改缺失 ' + noText(draft) : '新增缺失', { right: view.id ? null : ['清空', () => { if (confirm('清空重填？')) { localStorage.removeItem('dfi_draft'); startDraft(null); render(); } }] });
@@ -829,25 +841,13 @@ VIEWS.edit = () => {
   const d = draft;
   photoLists.draft = { get: () => d.photos, editable: true, changed: () => { keepDraft(); render(); } };
   photoTargets.draft = id => { d.photos.push(id); keepDraft(); render(); };
-  const base = Object.keys(TRADES[d.cat] || {}).filter(t => t !== '其他');
-  const mine = myList('trade', d.cat).filter(t => !base.includes(t));
-  const custom = d.trade && !base.includes(d.trade) && d.trade !== '其他';
-  const trades = base.concat(mine, custom && !mine.includes(d.trade) ? [d.trade] : []);
-  const byTrade = d.trade && d.trade !== '其他' ? vendorsForTrade(d.trade) : null;
-  const showAll = d._allV || d._other || (custom && !(byTrade && byTrade.length));
-  // 「其他」／自填工項：新開的單可以一次派給好幾家（全部或勾選部分）
-  const multiOK = !view.id && (custom || d._other || d.trade === '其他');
-  const multi = multiOK && d._multi;
-  const vs = byTrade || vendorsFor(d.cat);
-  const myPh = myList('phrase', d.cat + '|' + d.trade);
-  const phrases = ((TRADES[d.cat] || {})[d.trade] || []).concat(myPh.filter(t => !((TRADES[d.cat] || {})[d.trade] || []).includes(t)));
+  const multi = !view.id && !!d._multi;
+  const t = multi ? '其他' : d.trade, ph = phrasesOf(t);
   const used = f => [...new Set(Object.values(state.defects).filter(x => x.pid === p.id).map(x => x[f]).filter(Boolean))];
   const dueN = [3, 7, 14].includes(d.dueN) ? d.dueN : 0;
   return `<div class="card">
     <label class="f" style="margin-top:0">缺失照片（點照片可以畫圈標示）</label>
     <div class="photos">${photoRow(d.photos, 'draft', true)}${d.photos.length < 12 ? photoAdders('draft') : ''}</div>
-    <label class="f">大分類</label>
-    <div class="chips">${CATS.map(c => `<button class="chip ${d.cat === c ? 'on' : ''}" onclick="setCat('${c}')">${c}</button>`).join('')}</div>
     ${p.loc ? locPickHTML(d, p.loc) : `<label class="f">位置</label>
     <div class="muted" style="color:#e8590c">這個建案還沒設定位置規劃，${isAdmin() ? '到 首頁 → 管理建案 → 點建案 設定' : '請後台人員到建案管理設定'}後，這裡會變成用點的。</div>
     <div class="row"><input type="text" style="flex:1" placeholder="棟" list="dlB" value="${esc(d.bldg)}" oninput="draft.bldg=this.value;keepDraft()">
@@ -855,20 +855,13 @@ VIEWS.edit = () => {
       <input type="text" style="flex:1.6" placeholder="位置（如 C3 柱）" value="${esc(d.spot)}" oninput="draft.spot=this.value;keepDraft()"></div>
     <datalist id="dlB">${used('bldg').map(x => `<option value="${esc(x)}">`).join('')}</datalist>
     <datalist id="dlF">${used('floor').map(x => `<option value="${esc(x)}">`).join('')}</datalist>`}
-    <label class="f">工項</label>
-    <div class="chips">${trades.map(t => `<button class="chip ${d.trade === t ? 'on' : ''}" onclick="setTrade(${jsq(t)})">${esc(t)}${mine.includes(t) && canDropMine('trade', d.cat, t) ? ` <span onclick="event.stopPropagation();dropMine('trade',${jsq(d.cat)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
-      <button class="chip ${d._other || d.trade === '其他' ? 'on' : ''}" onclick="otherTrade()">其他（自填）</button></div>
-    ${d._other ? `<div class="row" style="margin-top:6px"><input type="text" id="otT" class="grow" maxlength="20" placeholder="要的話打工項名稱，例如：防火披覆（可不填）"><button class="btn small" onclick="setOtherTrade()">確定</button></div>` : ''}
-    <label class="f">負責廠商${multi ? '（可複選，每家各開一張單）' : byTrade && !showAll ? `（只列做「${esc(d.trade)}」的廠商）` : ''}</label>
-    ${multiOK ? `<div class="chips" style="margin-bottom:6px"><button class="chip ${!multi ? 'on' : ''}" onclick="draft._multi=false;keepDraft();render()">派給一家</button><button class="chip ${multi ? 'on' : ''}" onclick="draft._multi=true;draft.vids=draft.vids||(draft.vid?[draft.vid]:[]);keepDraft();render()">派給多家</button></div>` : ''}
-    ${multi ? multiVendorHTML(d) : `<div class="row"><select class="grow" onchange="pickVendor(this.value)">
-      <option value="">— 選廠商 —</option>
-      ${showAll ? allVendorOptions(d.vid) : (vs.length ? '' : `<option value="" disabled>（這個建案還沒有做「${esc(d.trade)}」的廠商）</option>`) + vs.map(v => vOpt(v, d.vid)).join('') + (d.vid && !vs.some(v => v.id === d.vid) ? `<option value="${d.vid}" selected>${esc(vName(d.vid))}</option>` : '')}
-      ${showAll ? '' : '<option value="*">▼ 顯示全部廠商…</option>'}
-      <option value="+">＋ 新增廠商…</option></select></div>`}
-    <label class="f">缺失說明（點常用語快速帶入，也可以直接打字）</label>
-    <div class="chips" style="margin-bottom:6px">${phrases.map(t => `<button class="chip" onclick="addPhrase(${jsq(t)})">${esc(t)}${myPh.includes(t) && canDropMine('phrase', d.cat + '|' + d.trade, t) ? ` <span onclick="event.stopPropagation();dropMine('phrase',${jsq(d.cat + '|' + d.trade)},${jsq(t)})">✕</span>` : ''}</button>`).join('')}
-      <button class="chip add" onclick="newPhrase()">＋ 新增常用語</button></div>
+    <label class="f">負責廠商${multi ? '（可複選，每家各開一張單）' : ''}</label>
+    ${view.id ? '' : `<div class="chips" style="margin-bottom:6px"><button class="chip ${!multi ? 'on' : ''}" onclick="draft._multi=false;keepDraft();render()">派給一家</button><button class="chip ${multi ? 'on' : ''}" onclick="draft._multi=true;draft.vids=draft.vids||(draft.vid?[draft.vid]:[]);keepDraft();render()">派給多家</button></div>`}
+    ${vendorChipsHTML(d, multi)}
+    <label class="f">缺失說明${t ? `（${esc(t)}）` : ''}</label>
+    ${t ? `<div class="chips" style="margin-bottom:6px">${ph.base.map(x => `<button class="chip" onclick="addPhrase(${jsq(x)})">${esc(x)}</button>`).join('')}${ph.mine.map(c => `<button class="chip" onclick="addPhrase(${jsq(c.text)})">${esc(c.text)}${canDropMine('phrase', c.key, c.text) ? ` <span onclick="event.stopPropagation();dropMine('phrase',${jsq(c.key)},${jsq(c.text)})">✕</span>` : ''}</button>`).join('')}
+      <button class="chip add" onclick="newPhrase()">＋ 新增常用語</button></div>`
+      : `<div class="muted" style="margin-bottom:6px">${d.vid ? '這家廠商還沒設工項，到「廠商」修改，就會出現常用缺失' : '先選廠商，會出現這家廠商常見的缺失'}</div>`}
     <textarea id="noteT" placeholder="例如：樑底蜂窩約 30×20cm" oninput="draft.note=this.value;keepDraft()">${esc(d.note)}</textarea>
     <label class="f">改善要求（可不填）</label>
     <textarea placeholder="例如：打除鬆散部分後以無收縮水泥砂漿修補" oninput="draft.req=this.value;keepDraft()">${esc(d.req)}</textarea>
@@ -882,13 +875,12 @@ VIEWS.edit = () => {
        <button class="btn line block" onclick="saveDraft(true)">儲存並傳 PDF 給廠商</button>
        <div class="muted" style="text-align:center;margin-top:4px">也可以只按「儲存缺失」，收工前到總覽一次傳給廠商</div>`}`;
 };
-// 位置：依建案的位置規劃用點的（棟只有一棟就不顯示；結構體／室內／室外各有自己的位置清單）
-// 室內裝修的位置存成「戶別 空間」，例如「A戶 主臥」
+// 位置：依建案的位置規劃用點的（棟只有一棟就不顯示）。位置存成「位置 空間」，例如「A戶 主臥」、「柱」
+const locPlaces = l => [...new Set([].concat(l.struct || [], l.units || [], l.outer || []))];
 function spotParts(d, l) {
   const t = String(d.spot || '').split(' ').filter(Boolean);
-  if (d.cat !== '室內裝修') return { u: d.spot || '', r: '' };
   if (t.length >= 2) return { u: t[0], r: t.slice(1).join(' ') };
-  return (l.rooms || []).includes(t[0]) && !(l.units || []).includes(t[0]) ? { u: '', r: t[0] || '' } : { u: t[0] || '', r: '' };
+  return (l.rooms || []).includes(t[0]) && !locPlaces(l).includes(t[0]) ? { u: '', r: t[0] || '' } : { u: t[0] || '', r: '' };
 }
 function locChips(list, cur, fn) {
   const all = cur && !list.includes(cur) ? list.concat([cur]) : list;   // 舊資料不在清單裡也要看得到
@@ -897,12 +889,15 @@ function locChips(list, cur, fn) {
 function locPickHTML(d, l) {
   const fl = floorsOf(l), floors = d.floor && !fl.includes(d.floor) ? fl.concat([d.floor]) : fl, sp = spotParts(d, l);
   const bl = l.bldgs || [], showB = bl.length > 1 || (d.bldg && !bl.includes(d.bldg));
-  const spotList = d.cat === '結構體' ? l.struct : d.cat === '室外裝修' ? l.outer : l.units;
+  const row = (label, list) => (list || []).length ? `<div class="muted" style="margin-top:4px">${label}</div>${locChips(list, list.includes(sp.u) ? sp.u : '', 'pickSpot')}` : '';
   return `${showB ? `<label class="f">棟別</label>${locChips(bl, d.bldg, 'pickBldg')}` : ''}
     <label class="f">樓層</label>
     <select onchange="draft.floor=this.value;keepDraft()"><option value="">— 選樓層 —</option>${floors.map(f => `<option ${d.floor === f ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
-    <label class="f">${d.cat === '室內裝修' ? '戶別／公設' : '位置'}</label>${(spotList || []).length || sp.u ? locChips(spotList || [], sp.u, 'pickSpot') : '<div class="muted">建案的位置規劃裡沒有這類的位置，請後台到建案管理加</div>'}
-    ${d.cat === '室內裝修' && ((l.rooms || []).length || sp.r) ? `<label class="f">空間（可不選）</label>${locChips(l.rooms || [], sp.r, 'pickRoom')}` : ''}`;
+    <label class="f">位置</label>
+    ${row('結構', l.struct)}${row('戶別／公設', l.units)}${row('室外', l.outer)}
+    ${sp.u && !locPlaces(l).includes(sp.u) ? locChips([], sp.u, 'pickSpot') : ''}
+    ${!locPlaces(l).length && !sp.u ? '<div class="muted">建案的位置規劃裡還沒有位置，請後台到建案管理加</div>' : ''}
+    ${(l.rooms || []).length || sp.r ? `<label class="f">空間（可不選）</label>${locChips(l.rooms || [], sp.r, 'pickRoom')}` : ''}`;
 }
 function pickBldg(x) { draft.bldg = draft.bldg === x ? '' : x; keepDraft(); render(); }
 function pickSpot(x) {
@@ -944,71 +939,46 @@ function migrateLocalCustoms() {
     localStorage.removeItem(key);
   });
 }
-// 點「其他」：工項先記成「其他」（可直接用其他的常用語、派給多家），要的話再打自己的工項名稱
-function otherTrade() {
-  if (draft.trade !== '其他' && !draft._other) { draft.trade = ''; setTrade('其他'); draft._other = true; }
-  else draft._other = !draft._other;
-  keepDraft(); render();
-  if (draft._other) setTimeout(() => $('otT') && $('otT').focus(), 50);
-}
-function setOtherTrade() {
-  const t = ($('otT').value || '').trim().slice(0, 20);
-  if (!t || t === '其他') { draft._other = false; keepDraft(); render(); return; }
-  draft._other = false;
-  if (!Object.keys(TRADES[draft.cat] || {}).includes(t)) addMine('trade', draft.cat, t);
-  draft.trade = '';
-  setTrade(t);
-}
 function newPhrase() {
-  const t = (prompt('新增常用語（之後點一下就能帶入）') || '').trim().slice(0, 40);
-  if (!t) return;
-  addMine('phrase', draft.cat + '|' + draft.trade, t);
-  addPhrase(t); render();
+  const t = draft._multi ? '其他' : draft.trade;
+  if (!t) { toast('先選廠商'); return; }
+  const x = (prompt(`新增「${t}」的常用缺失（之後點一下就能帶入）`) || '').trim().slice(0, 40);
+  if (!x) return;
+  addMine('phrase', catOfTrade(t, vendorOf(draft.vid)) + '|' + t, x);
+  addPhrase(x); render();
 }
-const vOpt = (v, cur) => `<option value="${v.id}" ${cur === v.id ? 'selected' : ''}>${esc(v.name)}${v.trades.length ? '（' + esc(v.trades.join('、')) + '）' : ''}</option>`;
-// 全部廠商：這個建案的（依分類）＋其他建案的（選了會自動加入這個建案）
-function allVendorOptions(cur) {
-  const pv = projVendors().filter(v => !v.disabled), ov = otherVendors();
-  let h = CATS.map(c => { const g = pv.filter(v => inCat(v, c)); return g.length ? `<optgroup label="${esc(c)}">${g.map(v => vOpt(v, cur)).join('')}</optgroup>` : ''; }).join('');
-  if (ov.length) h += `<optgroup label="其他建案的廠商（選了會加入這個建案）">${ov.map(v => vOpt(v, cur)).join('')}</optgroup>`;
-  if (cur && !pv.concat(ov).some(v => v.id === cur)) h += `<option value="${cur}" selected>${esc(vName(cur))}</option>`;
-  return h;
+function vendorChipsHTML(d, multi) {
+  const pv = projVendors().filter(v => !v.disabled), ov = d._allV ? otherVendors() : [];
+  const sel = multi ? (d.vids || []) : [d.vid];
+  const chip = v => `<button class="chip ${sel.includes(v.id) ? 'on' : ''}" onclick="${multi ? 'togMulti' : 'pickVendor'}('${v.id}')">${sel.includes(v.id) ? '✔ ' : ''}${esc(v.name)}</button>`;
+  const groups = {};
+  pv.forEach(v => { const k = vTrade(v) || '未設工項'; (groups[k] = groups[k] || []).push(v); });
+  const order = allTrades().concat(Object.keys(groups)).filter((k, i, a) => groups[k] && a.indexOf(k) === i);
+  let h = pv.length ? order.map(k => `<div style="margin-bottom:4px"><span class="muted">${esc(k)}</span><div class="chips">${groups[k].map(chip).join('')}</div></div>`).join('')
+    : '<div class="muted">這個建案還沒有廠商，按下面「＋ 新增廠商」</div>';
+  if (ov.length) h += `<div style="margin-bottom:4px"><span class="muted">其他建案的廠商（選了會加入這個建案）</span><div class="chips">${ov.map(chip).join('')}</div></div>`;
+  if (!multi && d.vid && !pv.concat(ov).some(v => v.id === d.vid)) h = `<div class="chips" style="margin-bottom:4px"><button class="chip on">✔ ${esc(vName(d.vid))}</button></div>` + h;
+  const all = pv.length && pv.every(v => sel.includes(v.id));
+  return h + `<div class="chips" style="margin-top:4px">${multi && pv.length ? `<button class="chip add" onclick="multiAll(${all ? 0 : 1})">${all ? '全部取消' : `全選（${pv.length} 家）`}</button>` : ''}
+    ${!d._allV && otherVendors().length ? '<button class="chip add" onclick="draft._allV=true;render()">其他建案的廠商…</button>' : ''}
+    <button class="chip add" onclick="newVendor()">＋ 新增廠商</button></div>`;
 }
-function multiVendorHTML(d) {
-  const pv = projVendors().filter(v => !v.disabled), sel = d.vids || [];
-  if (!pv.length) return '<div class="muted">這個建案還沒有廠商，先到「廠商」新增</div>';
-  const all = pv.every(v => sel.includes(v.id));
-  return `<div class="chips" style="margin-bottom:6px"><button class="chip ${all ? 'on' : ''}" onclick="multiAll(${all ? 0 : 1})">${all ? '✔ ' : ''}全部廠商（${pv.length} 家）</button>${sel.length && !all ? `<span class="muted" style="align-self:center">已勾 ${sel.length} 家</span>` : ''}</div>
-    ${CATS.map(c => { const g = pv.filter(v => inCat(v, c)); return g.length ? `<div class="muted" style="margin-top:6px">${esc(c)}</div><div class="chips">${g.map(v => `<button class="chip ${sel.includes(v.id) ? 'on' : ''}" onclick="togMulti('${v.id}')">${sel.includes(v.id) ? '✔ ' : ''}${esc(v.name)}</button>`).join('')}</div>` : ''; }).join('')}`;
+function togMulti(id) {
+  const a = draft.vids = draft.vids || [], i = a.indexOf(id);
+  if (i < 0) a.push(id); else a.splice(i, 1);
+  keepDraft(); render();
 }
-function togMulti(id) { const a = draft.vids = draft.vids || [], i = a.indexOf(id); if (i < 0) a.push(id); else a.splice(i, 1); keepDraft(); render(); }
 function multiAll(on) { draft.vids = on ? projVendors().filter(v => !v.disabled).map(v => v.id) : []; keepDraft(); render(); }
-function pickVendor(val) {
-  if (val === '+') { newVendor(draft.cat, draft.trade); return; }
-  if (val === '*') { draft._allV = true; render(); return; }
-  draft.vid = val;
+// 選廠商：工項跟著廠商（缺失說明就出現這個工項的常用語）；再點一次取消
+function pickVendor(id) {
+  if (draft.vid === id) { draft.vid = ''; keepDraft(); render(); return; }
+  const v = vendorOf(id);
+  draft.vid = id;
+  if (v && vTrade(v)) { draft.trade = vTrade(v); draft.cat = catOfTrade(draft.trade, v); }
   // 選了其他建案的廠商：先在手機上加入這個建案（上傳時後端也會自動加）
-  const v = vendorOf(val);
   if (v && !inProj(v, draft.pid)) {
     vEdit = clone(v); vEdit._base = (v.pids || []).slice(); vEdit.pids = vEdit._base.concat([draft.pid]); vEdit._fromDraft = true; vEdit._quiet = true;
     saveVendor();
-  }
-  keepDraft();
-}
-function setCat(c) {
-  if (draft.cat === c) return;
-  draft.cat = c; draft.trade = ''; draft._other = false; draft.spot = '';   // 各分類的位置不一樣
-  if (draft.vid && !vendorsFor(c).some(v => v.id === draft.vid)) draft.vid = '';
-  keepDraft(); render();
-}
-function setTrade(t) {
-  draft.trade = draft.trade === t ? '' : t;
-  draft._other = false;
-  // 自動帶廠商：只看做這個工項的廠商；只有一家就直接帶，好幾家讓你選，原本選的不是做這個的就清掉
-  draft._allV = false;
-  if (draft.trade && draft.trade !== '其他') {
-    const hit = vendorsForTrade(draft.trade);
-    if (!hit.some(v => v.id === draft.vid)) draft.vid = hit.length === 1 ? hit[0].id : '';
   }
   keepDraft(); render();
 }
@@ -1025,7 +995,7 @@ async function saveDraft(withLine) {
   if (!d.photos.length && !d.note) { toast('請拍照或寫缺失說明'); return; }
   if (!d.due) { toast('請選改善期限'); return; }
   const isNew = !view.id;
-  const multi = isNew && d._multi && (d.trade === '其他' || !Object.keys(TRADES[d.cat] || {}).includes(d.trade) || d._other);
+  const multi = isNew && !!d._multi;
   const vids = multi ? (d.vids || []).filter(id => vendorOf(id)) : [d.vid];
   if (multi && !vids.length) { toast('請勾選要派的廠商'); return; }
   if (withLine && !vids[0]) { toast('請先選廠商'); return; }
@@ -1034,7 +1004,12 @@ async function saveDraft(withLine) {
   if (isNew) { out.v = 0; out.by = auth.me.name; out.byUser = auth.me.user; out.created = ''; }
   else { const old = state.defects[d.id]; if (!old) { toast('這筆缺失已被刪除'); return; } SERVER_KEYS.forEach(k => { out[k] = old[k]; }); out.v = old.v; out.reviews = old.reviews; out.status = old.status; }
   // 派給好幾家：每家各開一張單（同一組 grp、共用照片）
-  const outs = vids.map((vid, i) => Object.assign(clone(out), { id: i ? uid() : out.id, vid, grp: vids.length > 1 ? out.id : (out.grp || '') }));
+  const outs = vids.map((vid, i) => {
+    const o = Object.assign(clone(out), { id: i ? uid() : out.id, vid, grp: vids.length > 1 ? out.id : (out.grp || '') }), v = vendorOf(vid);
+    if (multi && v && vTrade(v)) { o.trade = vTrade(v); o.cat = catOfTrade(o.trade, v); }   // 每家用自己的工項
+    if (!CATS.includes(o.cat)) o.cat = catOfTrade(o.trade, v);
+    return o;
+  });
   outs.forEach(o => saveD(o, newPh));
   if (isNew) {
     localStorage.removeItem('dfi_draft');
@@ -1135,25 +1110,23 @@ function lineSheet(ids) {
     <button class="btn ghost block" onclick="closeLayer()">${ids.length > 1 ? '完成' : '先不要'}</button>`);
 }
 // 在填缺失時新增廠商
-function newVendor(cat, trade) { editVendor(null, cat, trade); }
+function newVendor() { editVendor(null); vEdit._fromDraft = true; }
 
 // ── 缺失清單 ─────────────────────────────
-const LF = { cat: '', st: 'open', vid: null, q: '' };
+const LF = { st: 'open', vid: null, q: '' };
 VIEWS.list = () => {
   const p = curP();
   hdr(p ? p.name + ' ▾' : '缺失清單', { pick: true });
   if (view.st) { LF.st = view.st; delete view.st; }
   if (view.vid !== undefined) { LF.vid = view.vid; delete view.vid; }
   let ds = projDefects();
-  if (LF.cat) ds = ds.filter(d => d.cat === LF.cat);
   if (LF.vid !== null) ds = ds.filter(d => (d.vid || '') === LF.vid);
   ds = ds.filter({ open: d => OPEN(d.status), late: isLate, all: () => true }[LF.st] || (d => d.status === LF.st));
   if (LF.q) { const q = LF.q.toLowerCase(); ds = ds.filter(d => [noText(d), locText(d), d.note, d.req, d.trade, vName(d.vid)].join(' ').toLowerCase().includes(q)); }
   ds.sort((a, b) => LF.st === 'done' ? String(b.at || '').localeCompare(String(a.at || '')) : (isLate(b) - isLate(a)) || a.due.localeCompare(b.due) || (a.no || 1e9) - (b.no || 1e9));
   const stOpts = [['open', '未結案'], ['late', '逾期'], ['wait', '待改善'], ['doing', '改善中'], ['check', '待複查'], ['done', '已結案'], ['all', '全部']];
   const vs = [...new Set(projDefects().map(d => d.vid || ''))];
-  return `<div class="chips" style="margin-bottom:8px"><button class="chip ${!LF.cat ? 'on' : ''}" onclick="LF.cat='';render()">全部</button>${CATS.map(c => `<button class="chip ${LF.cat === c ? 'on' : ''}" onclick="LF.cat='${c}';render()">${c}</button>`).join('')}</div>
-    <div class="chips" style="margin-bottom:8px">${stOpts.map(([k, n]) => `<button class="chip ${LF.st === k ? 'on' : ''}" onclick="LF.st='${k}';render()">${n}</button>`).join('')}</div>
+  return `<div class="chips" style="margin-bottom:8px">${stOpts.map(([k, n]) => `<button class="chip ${LF.st === k ? 'on' : ''}" onclick="LF.st='${k}';render()">${n}</button>`).join('')}</div>
     <div class="row" style="margin-bottom:10px"><select style="flex:1" onchange="LF.vid=this.value==='*'?null:this.value;render()">
       <option value="*">全部廠商</option>${vs.map(id => `<option value="${id}" ${LF.vid === id ? 'selected' : ''}>${esc(vName(id))}</option>`).join('')}</select>
       <input type="search" style="flex:1" placeholder="🔍 搜尋" value="${esc(LF.q)}" onchange="LF.q=this.value;render()"></div>
@@ -1195,11 +1168,11 @@ VIEWS.detail = () => {
   subs.forEach(s => { const o = order[s.k][s.i]; s.at = o === undefined ? 1e9 + s.i : o; });
   subs.sort((a, b) => a.at - b.at);
   return `<div class="card">
-    <div class="row wrap" style="margin-bottom:6px">${stTag(d)}${catTag(d.cat)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}</div>
+    <div class="row wrap" style="margin-bottom:6px">${stTag(d)}${tradeTag(d.trade)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}</div>
     <div class="photos">${photoRow(d.photos, 'd-' + d.id, false)}</div>
     <table class="kv" style="margin-top:8px">
       <tr><th>位置</th><td>${esc(locText(d)) || '—'}</td></tr>
-      <tr><th>工項</th><td>${esc(d.cat)}${d.trade ? '／' + esc(d.trade) : ''}</td></tr>
+      <tr><th>工項</th><td>${esc(d.trade || '—')}</td></tr>
       <tr><th>廠商</th><td>${v ? `<a href="javascript:go({name:'vendor',id:'${v.id}'})">${esc(v.name)}</a>${v.phone ? `　<a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a>` : ''}` : '（未指定）'}</td></tr>
       <tr><th>缺失說明</th><td style="white-space:pre-wrap">${esc(d.note) || '—'}</td></tr>
       ${d.req ? `<tr><th>改善要求</th><td style="white-space:pre-wrap">${esc(d.req)}</td></tr>` : ''}
@@ -1363,9 +1336,12 @@ VIEWS.vendors = () => {
   const ds = projDefects();
   const list = projVendors().filter(v => !v.disabled || isAdmin());
   const others = otherVendors();
-  return CATS.map(c => {
-    const vs = list.filter(v => inCat(v, c));
-    return `<div class="card"><h3>${catTag(c)}</h3>${vs.length ? vs.map(v => {
+  const byT = {};
+  list.forEach(v => { const k = vTrade(v) || '未設工項'; (byT[k] = byT[k] || []).push(v); });
+  const keys = allTrades().concat(Object.keys(byT)).filter((k, i, a) => byT[k] && a.indexOf(k) === i);
+  return (keys.length ? '' : '<div class="card"><div class="muted">這個建案還沒有廠商</div></div>') + keys.map(c => {
+    const vs = byT[c];
+    return `<div class="card"><h3>${esc(c)}</h3>${vs.length ? vs.map(v => {
       const open = ds.filter(d => d.vid === v.id && OPEN(d.status)), late = open.filter(isLate).length;
       return `<div class="user-row" onclick="go({name:'vendor',id:'${v.id}'})"><div class="grow"><b>${esc(v.name)}</b>${v.disabled ? ' <span class="tag pend">停用</span>' : ''}
         <div class="muted">${esc(v.trades.join('、') || '—')}</div></div><div style="text-align:right;font-size:14px">${open.length ? `未結案 ${open.length}` : '<span class="muted">無</span>'}${late ? `<br><span class="red">逾期 ${late}</span>` : ''}</div>
@@ -1382,8 +1358,7 @@ VIEWS.vendor = () => {
   const open = ds.filter(d => OPEN(d.status)).sort((a, b) => (isLate(b) - isLate(a)) || a.due.localeCompare(b.due));
   const p = curP();
   return `<div class="card"><table class="kv">
-      <tr><th>分類</th><td>${vCatTags(v)}${v.disabled ? '<span class="tag pend">停用</span>' : ''}</td></tr>
-      <tr><th>工項</th><td>${esc(v.trades.join('、') || '—')}</td></tr>
+      <tr><th>工項</th><td>${esc(v.trades.join('、') || '—')}${v.disabled ? ' <span class="tag pend">停用</span>' : ''}</td></tr>
       <tr><th>建案</th><td>${esc(state.projects.filter(x => inProj(v, x.id)).map(x => x.name).join('、') || '（沒有加入建案）')}</td></tr>
       ${v.contact ? `<tr><th>聯絡人</th><td>${esc(v.contact)}</td></tr>` : ''}
       ${v.phone ? `<tr><th>電話</th><td><a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a></td></tr>` : ''}</table>
@@ -1405,19 +1380,18 @@ let vEdit = null;
 function editVendor(id, cat, trade) {
   const v = id ? vendorOf(id) : null;
   const p = curP();
-  vEdit = v ? clone(v) : { id: uid(), name: '', cats: [cat || '結構體'], trades: trade ? [trade] : [], contact: '', phone: '', disabled: false, pids: p ? [p.id] : [], _new: true, _fromDraft: !!cat };
+  vEdit = v ? clone(v) : { id: uid(), name: '', cats: [], trades: trade ? [trade] : [], contact: '', phone: '', disabled: false, pids: p ? [p.id] : [], _new: true, _fromDraft: !!cat };
   if (!vEdit.pids) vEdit.pids = [];
   vEdit.cats = vCats(vEdit).slice();
   vEdit._base = v ? (v.pids || []).slice() : null;
   drawVendorSheet();
 }
 function drawVendorSheet() {
-  const v = vEdit, all = [...new Set(v.cats.flatMap(c => Object.keys(TRADES[c] || {})).concat(v.trades))];
+  const v = vEdit, all = [...new Set(allTrades().concat(v.trades))];
   const ps = state.projects.filter(p => !p.disabled || v.pids.includes(p.id)), others = v._new ? otherVendors() : [];
   sheet(`<h3>${v._new ? '新增廠商' : '修改廠商'}</h3>
     ${others.length ? `<button class="btn ghost block" style="margin-bottom:6px" onclick="pickOtherVendor()">別的建案已經有這家？點這裡直接加入（${others.length} 家可選）</button>` : ''}
     <label class="f">廠商名稱</label><input type="text" id="vn" value="${esc(v.name)}" oninput="vEdit.name=this.value">
-    <label class="f">分類（可複選，例如水電：結構體＋室內裝修）</label><div class="chips">${CATS.map(c => `<button class="chip ${v.cats.includes(c) ? 'on' : ''}" onclick="togVCat('${c}')">${v.cats.includes(c) ? '✔ ' : ''}${c}</button>`).join('')}</div>
     <label class="f">工項（選一個）</label><div class="chips">${all.map(t => `<button class="chip ${v.trades.includes(t) ? 'on' : ''}" onclick="togTrade(${jsq(t)})">${esc(t)}</button>`).join('')}
       <button class="chip add" onclick="const t=prompt('其他工項名稱');if(t&&t.trim()){vEdit.trades=[t.trim().slice(0,20)];drawVendorSheet()}">＋ 其他</button></div>
     <label class="f">參與建案（可複選）</label><div class="chips">${ps.map(p => `<button class="chip ${v.pids.includes(p.id) ? 'on' : ''}" onclick="togPid('${p.id}')">${esc(p.name)}</button>`).join('')}</div>
@@ -1434,7 +1408,7 @@ function otherVendors() { const p = curP(); return p ? state.vendors.filter(v =>
 function pickOtherVendor() {
   const p = curP(), vs = otherVendors(), fromDraft = !!(vEdit && vEdit._fromDraft);
   sheet(`<h3>加入「${esc(p.name)}」</h3><div class="muted">點一家廠商就會加入這個建案，連結跟原本的一樣。</div>
-    ${CATS.map(c => { const g = vs.filter(v => inCat(v, c)); return g.length ? `<div class="group-h" style="margin-top:12px">${catTag(c)}</div>${g.map(v => `<div class="user-row" onclick="joinProject('${v.id}',${fromDraft})"><div class="grow"><b>${esc(v.name)}</b><div class="muted">${esc(v.trades.join('、') || '—')}｜${esc(state.projects.filter(x => inProj(v, x.id)).map(x => x.name).join('、') || '沒有建案')}</div></div>＋</div>`).join('')}` : ''; }).join('')}
+    ${allTrades().concat(['']).map(c => { const g = vs.filter(v => (vTrade(v) || '') === c); return g.length ? `<div class="group-h" style="margin-top:12px"><b>${esc(c || '未設工項')}</b></div>${g.map(v => `<div class="user-row" onclick="joinProject('${v.id}',${fromDraft})"><div class="grow"><b>${esc(v.name)}</b><div class="muted">${esc(v.trades.join('、') || '—')}｜${esc(state.projects.filter(x => inProj(v, x.id)).map(x => x.name).join('、') || '沒有建案')}</div></div>＋</div>`).join('')}` : ''; }).join('')}
     <button class="btn ghost block" onclick="closeLayer();if(view.name==='edit')render()">取消</button>`);
 }
 function joinProject(id, fromDraft) {
@@ -1454,7 +1428,7 @@ function togVCat(c) {
 async function saveVendor() {
   const v = vEdit;
   if (!v.name.trim()) { toast('請填廠商名稱'); return; }
-  if (!v.cats || !v.cats.length) v.cats = vCats(v);
+  v.cats = [catOfTrade(vTrade(v), v)];   // 分類不用選了，跟著工項（後端還要）
   const b = $('vSave'); if (b) b.disabled = true;
   try {
     const r = await api('saveVendor', { vendor: { id: v.id, name: v.name.trim(), cat: v.cats[0], cats: v.cats, trades: v.trades, contact: v.contact, phone: v.phone, disabled: v.disabled, pids: v.pids || [], basePids: v._base || undefined } });
@@ -1463,8 +1437,9 @@ async function saveVendor() {
     persistNow(); closeLayer();
     if (v._fromDraft && draft && inProj(r.vendor, draft.pid)) {
       // 開單時新建的廠商：分類跟著廠商；從全部廠商挑的：保留原本選的分類和工項
-      if (v._new && !v.cats.includes(draft.cat)) { draft.cat = v.cats[0]; if (!Object.keys(TRADES[v.cat] || {}).includes(draft.trade)) draft.trade = ''; }
-      draft.vid = v.id; keepDraft();
+      if (draft._multi) { draft.vids = (draft.vids || []).filter(x => x !== v.id).concat([v.id]); }
+      else { draft.vid = v.id; if (vTrade(r.vendor)) { draft.trade = vTrade(r.vendor); draft.cat = catOfTrade(draft.trade, r.vendor); } }
+      keepDraft();
     }
     if (!v._quiet) toast('廠商已存');
     render();
@@ -1561,10 +1536,10 @@ function editProject(id) {
     ${txt('bldgs', '棟別（只有一棟就空白，開單時不會出現）', '例如：A、B、C')}
     <label class="f">樓層</label><div class="row">${num('b', '地下幾層')}${num('n', '地上幾層')}${num('r', '屋突幾層')}</div>
     ${txt('floorsX', '另外的樓層（可不填）', '例如：夾層、機房層')}
-    ${txt('struct', '結構體的位置', '柱、樑、版、牆')}
-    ${txt('units', '室內裝修：戶別／公設', '例如：A戶、B戶、梯廳')}
-    ${txt('rooms', '室內裝修：空間（開單時可不選）', '客廳、主臥、浴室')}
-    ${txt('outer', '室外裝修的位置', '東向外牆、屋頂')}
+    ${txt('struct', '位置：結構', '柱、樑、版、牆')}
+    ${txt('units', '位置：戶別／公設', '例如：A戶、B戶、梯廳')}
+    ${txt('rooms', '空間（開單時可不選）', '客廳、主臥、浴室')}
+    ${txt('outer', '位置：室外', '東向外牆、屋頂')}
     ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
     <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
 }

@@ -76,7 +76,7 @@
       font(26); ctx.fillText('編號：No. ' + String(d.no).padStart(4, '0') + '　　狀態：' + STATUS[d.status], W / 2, y); y += 52;
       ctx.textAlign = 'left';
       row(['受通知廠商', o.vendorName(d.vid), '發單日期', roc(String(d.created || '').slice(0, 10))]);
-      row(['工項', d.trade || d.cat, '改善期限', roc(d.due)]);
+      row(['工項', d.trade || '', '改善期限', roc(d.due)]);
       row(['位置', [d.bldg, d.floor, d.spot].filter(Boolean).join(' ')]);
       row(['缺失說明', d.note || '']);
       row(['改善要求', d.req || '請依規範改善，完成後通知工地複查，合格始得結案。']);

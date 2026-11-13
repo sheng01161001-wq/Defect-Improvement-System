@@ -667,13 +667,13 @@ function pdfBlob_(hs, pn, vn, name) {
 function xlsxBlob_(hs, pn, vn, name) {
   const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
   const col = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
-  const head = ['編號', '建案', '廠商', '位置', '大分類', '工項', '缺失說明', '改善要求', '改善期限', '狀態', '開單日期', '開單人', '廠商回報', '缺失照片'];
+  const head = ['編號', '建案', '廠商', '位置', '工項', '缺失說明', '改善要求', '改善期限', '狀態', '開單日期', '開單人', '廠商回報', '缺失照片'];
   const rows = [['缺失改善清單　' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')], head].concat(hs.map(h => {
     const d = h.d, v = vn[d.vid], fix = (d.fixes || []).slice(-1)[0];
-    return [String(d.no).padStart(4, '0'), pn[d.pid] || '', v ? v.name : '', locOf_(d), d.cat, d.trade, d.note, d.req, d.due, STATUS[d.status],
+    return [String(d.no).padStart(4, '0'), pn[d.pid] || '', v ? v.name : '', locOf_(d), d.trade, d.note, d.req, d.due, STATUS[d.status],
       String(d.created || '').slice(0, 10), d.by, fix ? (fix.at + ' ' + (fix.note || '')) : '', (d.photos || []).length + ' 張'];
   }));
-  const widths = [8, 14, 14, 18, 10, 10, 34, 30, 12, 9, 12, 10, 26, 9];
+  const widths = [8, 14, 14, 18, 10, 34, 30, 12, 9, 12, 10, 26, 9];
   let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'
     + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>';
   rows.forEach((r, ri) => {
