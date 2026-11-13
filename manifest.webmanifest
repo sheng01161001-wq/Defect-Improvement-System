@@ -1,6 +1,6 @@
 {
-  "name": "小棒槌 缺失改善系統",
-  "short_name": "缺失改善",
+  "name": "缺失改善系統",
+  "short_name": "缺失改善系統",
   "description": "工地巡檢缺失：拍照開單、LINE 通知廠商、廠商回報、複查結案",
   "lang": "zh-Hant-TW",
   "start_url": "./",
