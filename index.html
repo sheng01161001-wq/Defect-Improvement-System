@@ -144,7 +144,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v27';
+const VERSION = 'v28';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -850,8 +850,9 @@ VIEWS.edit = () => {
   const d = draft;
   photoLists.draft = { get: () => d.photos, editable: true, changed: () => { keepDraft(); render(); } };
   photoTargets.draft = id => { d.photos.push(id); keepDraft(); render(); };
-  const multi = !view.id && !!d._multi;
-  const t = multi ? '其他' : d.trade, ph = phrasesOf(t);
+  const multi = !view.id;
+  if (multi && !d.vids) d.vids = d.vid ? [d.vid] : [];
+  const t = d.trade, ph = phrasesOf(t);
   const used = f => [...new Set(Object.values(state.defects).filter(x => x.pid === p.id).map(x => x[f]).filter(Boolean))];
   const dueN = [3, 7, 14].includes(d.dueN) ? d.dueN : 0;
   return `<div class="card">
@@ -864,8 +865,7 @@ VIEWS.edit = () => {
       <input type="text" style="flex:1.6" placeholder="位置（如 C3 柱）" value="${esc(d.spot)}" oninput="draft.spot=this.value;keepDraft()"></div>
     <datalist id="dlB">${used('bldg').map(x => `<option value="${esc(x)}">`).join('')}</datalist>
     <datalist id="dlF">${used('floor').map(x => `<option value="${esc(x)}">`).join('')}</datalist>`}
-    <label class="f">負責廠商${multi ? '（可複選，每家各開一張單）' : ''}</label>
-    ${view.id ? '' : `<div class="chips" style="margin-bottom:6px"><button class="chip ${!multi ? 'on' : ''}" onclick="draft._multi=false;keepDraft();render()">派給一家</button><button class="chip ${multi ? 'on' : ''}" onclick="draft._multi=true;draft.vids=draft.vids||(draft.vid?[draft.vid]:[]);keepDraft();render()">派給多家</button></div>`}
+    <label class="f">負責廠商${multi ? '（可以選好幾家，每家各開一張單）' : ''}</label>
     ${vendorChipsHTML(d, multi)}
     <label class="f">缺失說明${t ? `（${esc(t)}）` : ''}</label>
     ${t ? `<div class="chips" style="margin-bottom:6px">${ph.base.map(x => `<button class="chip" onclick="addPhrase(${jsq(x)})">${esc(x)}</button>`).join('')}${ph.mine.map(c => `<button class="chip" onclick="addPhrase(${jsq(c.text)})">${esc(c.text)}${canDropMine('phrase', c.key, c.text) ? ` <span onclick="event.stopPropagation();dropMine('phrase',${jsq(c.key)},${jsq(c.text)})">✕</span>` : ''}</button>`).join('')}
@@ -952,7 +952,7 @@ function migrateLocalCustoms() {
   });
 }
 function newPhrase() {
-  const t = draft._multi ? '其他' : draft.trade;
+  const t = draft.trade;
   if (!t) { toast('先選廠商'); return; }
   const x = (prompt(`新增「${t}」的常用缺失（之後點一下就能帶入）`) || '').trim().slice(0, 40);
   if (!x) return;
@@ -987,29 +987,41 @@ function vendorChipsHTML(d, multi) {
 // 點工項：打開（再點一次收起來）；只有一家廠商就直接選好
 function pickVT(k) {
   draft._vt = draft._vt === k ? '' : k;
-  if (draft._vt && !draft._multi) {
+  if (draft._vt) {
     const g = projVendors().filter(v => !v.disabled && (vTrade(v) || '未設工項') === k);
-    if (g.length === 1 && draft.vid !== g[0].id) { pickVendor(g[0].id); return; }
+    if (g.length === 1) {
+      if (view.id) { if (draft.vid !== g[0].id) { pickVendor(g[0].id); return; } }
+      else if (!(draft.vids || []).includes(g[0].id)) { draft._vt = ''; togMulti(g[0].id); return; }
+    }
   }
   keepDraft(); render();
 }
 function togMulti(id) {
   const a = draft.vids = draft.vids || [], i = a.indexOf(id);
-  if (i < 0) a.push(id); else a.splice(i, 1);
-  keepDraft(); render();
+  if (i < 0) { a.push(id); joinProj(vendorOf(id)); } else a.splice(i, 1);
+  syncVids(); keepDraft(); render();
 }
-function multiAll(on) { draft.vids = on ? projVendors().filter(v => !v.disabled).map(v => v.id) : []; keepDraft(); render(); }
+// 選的廠商 → 第一家當 vid；工項：都同一個工項就用它（常用缺失跟著出現），不同工項就用「其他」
+function syncVids() {
+  const vs = (draft.vids || []).map(vendorOf).filter(Boolean), ts = [...new Set(vs.map(vTrade).filter(Boolean))];
+  draft.vid = draft.vids[0] || '';
+  draft.trade = ts.length === 1 ? ts[0] : ts.length ? '其他' : '';
+  if (draft.trade) draft.cat = catOfTrade(draft.trade, vs[0]);
+}
+// 選了其他建案的廠商：先在手機上加入這個建案（上傳時後端也會自動加）
+function joinProj(v) {
+  if (!v || inProj(v, draft.pid)) return;
+  vEdit = clone(v); vEdit._base = (v.pids || []).slice(); vEdit.pids = vEdit._base.concat([draft.pid]); vEdit._fromDraft = true; vEdit._quiet = true;
+  saveVendor();
+}
+function multiAll(on) { draft.vids = on ? projVendors().filter(v => !v.disabled).map(v => v.id) : []; syncVids(); keepDraft(); render(); }
 // 選廠商：工項跟著廠商（缺失說明就出現這個工項的常用語）；再點一次取消
 function pickVendor(id) {
   if (draft.vid === id) { draft.vid = ''; keepDraft(); render(); return; }
   const v = vendorOf(id);
   draft.vid = id; draft._vt = '';   // 選好就收起來，畫面比較短
   if (v && vTrade(v)) { draft.trade = vTrade(v); draft.cat = catOfTrade(draft.trade, v); }
-  // 選了其他建案的廠商：先在手機上加入這個建案（上傳時後端也會自動加）
-  if (v && !inProj(v, draft.pid)) {
-    vEdit = clone(v); vEdit._base = (v.pids || []).slice(); vEdit.pids = vEdit._base.concat([draft.pid]); vEdit._fromDraft = true; vEdit._quiet = true;
-    saveVendor();
-  }
+  joinProj(v);
   keepDraft(); render();
 }
 function addPhrase(t) {
@@ -1025,9 +1037,9 @@ async function saveDraft(withLine) {
   if (!d.photos.length && !d.note) { toast('請拍照或寫缺失說明'); return; }
   if (!d.due) { toast('請選改善期限'); return; }
   const isNew = !view.id;
-  const multi = isNew && !!d._multi;
-  const vids = multi ? (d.vids || []).filter(id => vendorOf(id)) : [d.vid];
-  if (multi && !vids.length) { toast('請勾選要派的廠商'); return; }
+  const multi = isNew;
+  let vids = multi ? (d.vids || []).filter(id => vendorOf(id)) : [d.vid];
+  if (!vids.length) vids = [''];   // 還沒選廠商也可以先存
   if (withLine && !vids[0]) { toast('請先選廠商'); return; }
   const newPh = d.photos.filter(id => !(d._orig || []).includes(id));
   const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV; delete out._multi; delete out.vids; delete out._t; delete out._vt;
@@ -1467,7 +1479,7 @@ async function saveVendor() {
     persistNow(); closeLayer();
     if (v._fromDraft && draft && inProj(r.vendor, draft.pid)) {
       // 開單時新建的廠商：分類跟著廠商；從全部廠商挑的：保留原本選的分類和工項
-      if (draft._multi) { draft.vids = (draft.vids || []).filter(x => x !== v.id).concat([v.id]); }
+      if (!view.id) { draft.vids = (draft.vids || []).filter(x => x !== v.id).concat([v.id]); syncVids(); }
       else { draft.vid = v.id; if (vTrade(r.vendor)) { draft.trade = vTrade(r.vendor); draft.cat = catOfTrade(draft.trade, r.vendor); } }
       keepDraft();
     }
@@ -1547,6 +1559,31 @@ const LOC_DEF = { b: 1, n: 5, r: 1, bldgs: [], floorsX: [],
   units: ['A戶', 'B戶', '梯廳', '走道', '樓梯間'],
   rooms: ['客廳', '餐廳', '廚房', '主臥', '次臥', '浴室', '陽台', '玄關'],
   outer: ['東向外牆', '西向外牆', '南向外牆', '北向外牆', '屋頂', '中庭', '車道', '大門', '圍牆'] };
+// 建案位置規劃可以點的選項（點了才會出現在開單畫面；不夠可以「＋ 自己加」）
+const LOC_OPTS = {
+  struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '筏基', '電梯井', '女兒牆', '陽台', '雨遮', '屋突', '地下室外牆', '車道'],
+  units: ['A戶', 'B戶', 'C戶', 'D戶', 'E戶', 'F戶', 'G戶', 'H戶', '梯廳', '走道', '樓梯間', '電梯廳', '管委會', '交誼廳', '健身房', '垃圾間', '停車場'],
+  rooms: ['客廳', '餐廳', '廚房', '主臥', '次臥', '書房', '和室', '浴室', '主浴', '客浴', '陽台', '工作陽台', '玄關', '走道', '儲藏室', '更衣室'],
+  outer: ['東向外牆', '西向外牆', '南向外牆', '北向外牆', '屋頂', '中庭', '車道', '大門', '圍牆', '景觀', '排水溝', '人行道', '機房', '水塔']
+};
+let plSel = null;
+const plChip = (k, x) => `<button class="chip ${plSel[k].includes(x) ? 'on' : ''}" onclick="plTog('${k}',${jsq(x)},this)">${esc(x)}</button>`;
+function plChips(k, label) {
+  const opts = [...new Set(LOC_OPTS[k].concat(plSel[k]))];
+  return `<label class="f">${label}</label><div class="chips" id="plc_${k}">${opts.map(x => plChip(k, x)).join('')}<button class="chip add" onclick="plAdd('${k}')">＋ 自己加</button></div>`;
+}
+function plTog(k, x, b) {
+  const a = plSel[k], i = a.indexOf(x);
+  if (i < 0) a.push(x); else a.splice(i, 1);
+  b.classList.toggle('on', i < 0);
+}
+function plAdd(k) {
+  const x = (prompt('要加的項目（一次一個）') || '').trim().replace(/[、,，;；\s]+/g, '').slice(0, 12);
+  if (!x) return;
+  if (!plSel[k].includes(x)) plSel[k].push(x);
+  const box = $('plc_' + k), had = [...box.children].find(b => b.textContent === x);
+  if (had) had.classList.add('on'); else box.lastElementChild.insertAdjacentHTML('beforebegin', plChip(k, x));
+}
 const splitList = s => [...new Set(String(s || '').split(/[、,，;；\s]+/).map(x => x.trim()).filter(Boolean))];
 function floorsOf(l) {
   const a = [];
@@ -1557,26 +1594,29 @@ function floorsOf(l) {
 }
 function editProject(id) {
   const p = id ? state.projects.find(x => x.id === id) : null, l = (p && p.loc) || LOC_DEF;
+  plSel = { struct: (l.struct || []).slice(), units: (l.units || []).slice(), rooms: (l.rooms || []).slice(), outer: (l.outer || []).slice() };
   const txt = (k, label, hint) => `<label class="f">${label}</label><textarea id="pl_${k}" rows="2" style="min-height:0" placeholder="${esc(hint)}">${esc((l[k] || []).join('、'))}</textarea>`;
   const num = (k, label) => `<label style="flex:1;font-size:14px;min-width:0">${label}<input type="number" inputmode="numeric" id="pl_${k}" min="0" max="80" value="${l[k] || 0}" style="display:block;width:100%;margin-top:2px"></label>`;
   sheet(`<h3>${p ? '修改建案' : '新增建案'}</h3><label class="f">建案名稱</label><input type="text" id="pjn" value="${esc(p ? p.name : '')}">
     <h3 style="margin-top:16px">位置規劃（開單時用點的）</h3>
     ${p && !p.loc ? '<div class="muted" style="color:#e8590c">這個建案還沒設定，下面是預設值，改好按儲存。</div>' : ''}
-    <div class="muted">多個項目用「、」或空白分開。</div>
-    ${txt('bldgs', '棟別（只有一棟就空白，開單時不會出現）', '例如：A、B、C')}
+    <div class="muted">下面的項目點一下選、再點一下取消，<b>選了的</b>開單時才會出現。</div>
+    ${txt('bldgs', '棟別（只有一棟就空白，開單時不會出現；多棟用「、」分開）', '例如：A、B、C')}
     <label class="f">樓層</label><div class="row">${num('b', '地下幾層')}${num('n', '地上幾層')}${num('r', '屋突幾層')}</div>
     ${txt('floorsX', '另外的樓層（可不填）', '例如：夾層、機房層')}
-    ${txt('struct', '位置：結構', '柱、樑、版、牆')}
-    ${txt('units', '位置：戶別／公設', '例如：A戶、B戶、梯廳')}
-    ${txt('rooms', '空間（開單時可不選）', '客廳、主臥、浴室')}
-    ${txt('outer', '位置：室外', '東向外牆、屋頂')}
+    ${plChips('struct', '位置：結構')}
+    ${plChips('rooms', '位置：空間')}
+    ${plChips('outer', '位置：室外')}
+    ${plChips('units', '戶別／公設')}
     ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
     <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
 }
 async function saveProject(id, b) {
   b.disabled = true;
   const loc = { b: +$('pl_b').value || 0, n: +$('pl_n').value || 0, r: +$('pl_r').value || 0 };
-  ['bldgs', 'floorsX', 'struct', 'units', 'rooms', 'outer'].forEach(k => { loc[k] = splitList($('pl_' + k).value); });
+  ['bldgs', 'floorsX'].forEach(k => { loc[k] = splitList($('pl_' + k).value); });
+  // 點選的項目照選項清單的順序存（開單畫面排起來比較整齊）
+  ['struct', 'units', 'rooms', 'outer'].forEach(k => { loc[k] = [...new Set(LOC_OPTS[k].concat(plSel[k]))].filter(x => plSel[k].includes(x)); });
   const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: !!($('pjd') && $('pjd').checked), loc };
   try {
     const r = await api('saveProject', { project: p });
