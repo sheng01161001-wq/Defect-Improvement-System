@@ -146,7 +146,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v32';
+const VERSION = 'v33';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -763,17 +763,70 @@ function trialReport(h, name) {
   localStorage.setItem(LS('dfi_trialrep'), JSON.stringify({ h, name: String(name || '').slice(0, 20), dev, ua }));
   trialSend();
 }
+const TRIAL_API = (LOCAL && localStorage.getItem('dfi_api')) || API_DEFAULT;
 async function trialSend() {
   const r = localStorage.getItem(LS('dfi_trialrep'));
-  if (!r || LOCAL) return;   // 本機測試不要記到真的後端
+  if (!r || (LOCAL && !localStorage.getItem('dfi_api'))) return;   // 本機測試不要記到真的後端
   try {
-    const res = await fetch(API_DEFAULT, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'trialLog' }, JSON.parse(r))) });
+    const res = await fetch(TRIAL_API, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'trialLog' }, JSON.parse(r))) });
     if ((await res.json()).ok) localStorage.removeItem(LS('dfi_trialrep'));
   } catch (e) {}
 }
+function trialSave(h, code) {
+  localStorage.setItem(LS('dfi_trial'), h);
+  if ((trialCfg.owners || []).includes(h)) localStorage.setItem(LS('dfi_trialown'), String(code).trim().toUpperCase());
+}
+const isTrialOwner = () => SOLO && !!trialCfg && (trialCfg.owners || []).includes(localStorage.getItem(LS('dfi_trial')));
+// ── 試用碼管理（只有自己用的碼看得到；只能看，新增／停用在電腦的「試用管理」）──
+let trialData = null;
+async function trialFetch() {
+  trialData = { loading: true };
+  try {
+    const own = localStorage.getItem(LS('dfi_trialown'));
+    const j = await (await fetch(TRIAL_API, { method: 'POST', body: JSON.stringify({ action: 'trialList', owner: own }) })).json();
+    if (!j.ok) { trialData = { err: j.err || '讀不到' }; if (/不是管理用/.test(j.err || '')) localStorage.removeItem(LS('dfi_trialown')); }
+    else {
+      for (const c of j.codes) c.h = await sha256hex(c.code);
+      trialData = j;
+    }
+  } catch (e) { trialData = { err: '連不上網路' }; }
+  if (view.name === 'trials') render();
+}
+async function trialOwnSet() {
+  const b = $('tob'); b.disabled = true;
+  try {
+    const code = $('to').value.trim().toUpperCase(), h = await trialCheck(code);
+    if (!(trialCfg.owners || []).includes(h)) throw new Error('這組不是你自己用的碼');
+    localStorage.setItem(LS('dfi_trialown'), code); trialData = null; render();
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+VIEWS.trials = () => {
+  hdr('🔑 試用碼管理', { right: ['重新整理', () => { trialData = null; render(); }] });
+  if (!localStorage.getItem(LS('dfi_trialown'))) return `<div class="card"><h3>請再輸入一次你自己用的試用碼</h3>
+    <div class="muted">確認是你本人才看得到朋友的試用碼（只要輸入一次）。</div>
+    <input type="text" id="to" maxlength="20" autocapitalize="characters" autocomplete="off" style="margin-top:8px">
+    <button class="btn block" id="tob" onclick="trialOwnSet()">確定</button></div>`;
+  if (!trialData) { trialFetch(); return '<div class="empty">讀取中…</div>'; }
+  if (trialData.loading) return '<div class="empty">讀取中…</div>';
+  if (trialData.err) return `<div class="card"><p>${esc(trialData.err)}</p><button class="btn block" onclick="trialData=null;render()">再試一次</button></div>`;
+  if (!trialData.codes.length) return '<div class="card">清單還沒同步上來：到電腦打開「缺失改善單機版試用管理」隨便做一個動作（例如 7 改備註）就會同步。</div>';
+  const by = {};
+  trialData.rows.forEach(r => { const d = (by[r.h] = by[r.h] || {}); d[r.dev] = r; });   // 同一支手機只留最後一筆
+  const until = trialCfg && trialCfg.until, ended = until && ymd(new Date()) > until;
+  const fr = trialData.codes.filter(c => !c.owner), used = fr.filter(c => by[c.h]).length, warn = fr.filter(c => Object.keys(by[c.h] || {}).length > 1).length;
+  return `<div class="card"><div>到期日：<b>${esc(String(until || '（沒設）').replace(/-/g, '/'))}</b>　${ended ? '<span class="tag" style="background:#c92a2a">已到期</span>' : '<span class="tag" style="background:#2b8a3e">試用中</span>'}</div>
+      <div class="muted" style="margin-top:4px">朋友的碼 ${fr.length} 組：${used} 組有人用${warn ? `，<b style="color:#c92a2a">⚠ ${warn} 組不只一支手機（可能被轉傳）</b>` : ''}</div>
+      <div class="muted" style="font-size:13px;margin-top:4px">新增、停用、改到期日、改備註：用電腦的「缺失改善單機版試用管理」。</div></div>
+    ${trialData.codes.map(c => { const devs = Object.values(by[c.h] || {}), n = devs.length;
+      return `<div class="card" style="${!c.active ? 'opacity:.55' : ''}">
+        <div class="row" style="align-items:center;gap:6px"><b style="font-size:18px;letter-spacing:1px">${esc(c.code)}</b><span class="grow">${esc(c.name || '')}</span>
+          ${c.owner ? '<span class="tag" style="background:#1971c2">自己用</span>' : ''}${c.active ? '' : '<span class="tag" style="background:#868e96">已停用</span>'}</div>
+        <div style="margin-top:4px;${n > 1 ? 'color:#c92a2a;font-weight:bold' : 'color:var(--muted)'}">${n > 1 ? `⚠ ${n} 支手機` : n ? '1 支手機' : '還沒人用'}</div>
+        ${devs.map(d => `<div class="muted" style="font-size:14px">・${esc(d.name || '（沒填名字）')}　${esc(d.ua)}　${esc(d.at)}</div>`).join('')}</div>`; }).join('')}`;
+};
 async function trialEnter() {
   const b = $('tb'); b.disabled = true;
-  try { const h = await trialCheck($('tc').value); localStorage.setItem(LS('dfi_trial'), h); trialReport(h, auth && auth.me.name); view = { name: 'start' }; render(); }
+  try { const h = await trialCheck($('tc').value); trialSave(h, $('tc').value); trialReport(h, auth && auth.me.name); view = { name: 'start' }; render(); }
   catch (e) { toast(e.message); b.disabled = false; }
 }
 VIEWS.trial = () => {
@@ -789,7 +842,7 @@ const trialEndText = () => (trialCfg && (trialCfg.codes || []).includes(localSto
 async function soloStart(quiet) {
   const b = $('lb'); if (b) b.disabled = true;
   try {
-    if (!quiet && $('lt')) { const h = await trialCheck($('lt').value); localStorage.setItem(LS('dfi_trial'), h); trialReport(h, $('ln') ? $('ln').value : ''); }
+    if (!quiet && $('lt')) { const h = await trialCheck($('lt').value); trialSave(h, $('lt').value); trialReport(h, $('ln') ? $('ln').value : ''); }
     setAuth(await api('soloAuth', { name: $('ln') ? $('ln').value : '' }));
     const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
     if (saved) state = saved;
@@ -1611,6 +1664,8 @@ VIEWS.settings = () => {
       <button class="btn ghost block" onclick="$('rsf').click()">♻️ 從備份檔還原</button>
       <input type="file" id="rsf" accept=".json,application/json" style="display:none" onchange="soloRestore(this.files[0]);this.value=''">
       <div class="muted">上次備份：${localStorage.getItem(LS('dfi_lastBackup')) ? esc(localStorage.getItem(LS('dfi_lastBackup')).slice(0, 16).replace('T', ' ')) : '還沒備份過'}</div></div>
+    ${isTrialOwner() ? `<div class="card"><h3>🔑 試用碼管理</h3><div class="muted">看朋友的試用碼、誰在用、有沒有被轉傳（只有你的碼看得到）</div>
+      <button class="btn ghost block" onclick="trialData=null;go({name:'trials'})">打開</button></div>` : ''}
     <div class="card"><h3>管理</h3>
       <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
       <button class="btn ghost block" style="color:#c92a2a" onclick="resetData()">🧹 資料歸零</button></div>

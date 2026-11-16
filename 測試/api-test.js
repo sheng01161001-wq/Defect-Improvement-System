@@ -284,6 +284,12 @@ badCall({ action: 'trialList', key: 'short' }, '鑰匙太短');
 const TL = okCall({ action: 'trialList', key: 'k'.repeat(30) }, '第一次讀紀錄（設定鑰匙）');
 ok(TL.rows.length === 2 && TL.rows[0].name === '小王' && TL.rows[1].name === '=HYPERLINK("x")' && TL.rows[0].dev === 'dev123abc', '紀錄內容正確（公式不會被執行）');
 badCall({ action: 'trialList', key: 'z'.repeat(30) }, '別的鑰匙讀紀錄');
+badCall({ action: 'trialSync', key: 'z'.repeat(30), codes: [] }, '別的鑰匙同步清單');
+okCall({ action: 'trialSync', key: 'k'.repeat(30), codes: [{ code: 'own123', name: '自己', owner: true, active: true }, { code: 'abc999', name: '小王', active: true }] }, '同步試用碼清單');
+badCall({ action: 'trialList', owner: 'ABC999' }, '朋友的碼不能看管理頁');
+badCall({ action: 'trialList', owner: 'NOPE00' }, '亂打的碼不能看');
+const TO = okCall({ action: 'trialList', owner: 'own123' }, '自己的碼看管理頁');
+ok(TO.codes.length === 2 && TO.codes[1].name === '小王' && TO.rows.length === 2, '看得到號碼和紀錄');
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

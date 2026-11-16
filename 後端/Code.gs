@@ -51,7 +51,7 @@ function doPost(e) {
 // 廠商用的（不用登入，靠回報碼）
 const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, vendorExport: vendorExport_,
   vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_,
-  trialLog: trialLog_, trialList: trialList_ };
+  trialLog: trialLog_, trialList: trialList_, trialSync: trialSync_ };
 const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, deleteVendor: deleteVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
 const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_, resetData: resetData_ };
@@ -380,14 +380,31 @@ function trialLog_(q) {
   sh.appendRow([now_(), h, txt_(str_(q.name, 20)), dev, txt_(str_(q.ua, 60))]);
   return {};
 }
+function trialKeyOk_(key) {
+  key = String(key || '');
+  const p = props_();
+  if (key.length < 20) return false;
+  if (!p.getProperty('TRIAL_KEY')) p.setProperty('TRIAL_KEY', key);   // 第一次用的人設定鑰匙
+  return p.getProperty('TRIAL_KEY') === key;
+}
+const trialCodes_ = () => JSON.parse(props_().getProperty('TRIAL_CODES') || '[]');
+// 讀紀錄：電腦的試用管理用鑰匙；手機單機版用「自己用」的那組試用碼（owner）
 function trialList_(q) {
-  const key = String(q.key || ''), p = props_();
-  if (key.length < 20) throw new Error('鑰匙不對');
-  if (!p.getProperty('TRIAL_KEY')) p.setProperty('TRIAL_KEY', key);   // 第一次讀的人設定鑰匙
-  if (p.getProperty('TRIAL_KEY') !== key) throw new Error('鑰匙不對');
+  const own = String(q.owner || '').trim().toUpperCase();
+  const okOwner = own && trialCodes_().some(c => c.owner && c.code === own);
+  if (!okOwner && !trialKeyOk_(q.key)) throw new Error(q.owner ? '這組碼不是管理用的' : '鑰匙不對');
   const sh = trialSheet_(), last = sh.getLastRow();
-  if (last < 2) return { rows: [] };
-  return { rows: sh.getRange(2, 1, last - 1, 5).getValues().map(r => ({ at: timeStr_(r[0]), h: String(r[1]), name: un_(r[2]), dev: String(r[3]), ua: un_(r[4]) })) };
+  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 5).getValues().map(r => ({ at: timeStr_(r[0]), h: String(r[1]), name: un_(r[2]), dev: String(r[3]), ua: un_(r[4]) }));
+  return { rows, codes: trialCodes_() };
+}
+// 電腦的試用管理把試用碼清單（碼、備註、有沒有在用）同步上來，手機才看得到號碼
+function trialSync_(q) {
+  if (!trialKeyOk_(q.key)) throw new Error('鑰匙不對');
+  const list = (Array.isArray(q.codes) ? q.codes : []).slice(0, 200).map(c => ({
+    code: String(c.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12), name: str_(c.name, 20),
+    owner: !!c.owner, active: !!c.active, made: str_(c.made, 10) })).filter(c => c.code);
+  props_().setProperty('TRIAL_CODES', JSON.stringify(list));
+  return { n: list.length };
 }
 
 // ── 大家自己加的工項、常用語（全公司共用）──────────
