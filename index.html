@@ -148,7 +148,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v34';
+const VERSION = 'v35';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -1031,20 +1031,23 @@ VIEWS.edit = () => {
 };
 // 位置：依建案的位置規劃用點的（棟只有一棟就不顯示）。
 // 位置存成「戶別 位置1 位置2…」，例如「A戶 浴室 牆」；位置可以點好幾個，戶別只選一個
-// 每戶格局 → 房間名稱：3房＝主臥、次臥1、次臥2；2衛＝主浴、客浴；2陽台＝前陽台、後陽台
-const GEN_ROOMS = ['主臥', '次臥', '浴室', '主浴', '客浴', '陽台'];
+// 每戶格局 → 房間名稱（使用者的叫法）：
+// 房：主臥室、次臥室、臥室1、臥室2…；衛浴：1衛＝衛浴，2衛＝主衛浴、次衛浴、衛浴3…；陽台：陽台、工作陽台、露臺、陽台4…
 function unitRoomNames(c) {
   const a = [], r = c.r || 0, b = c.b || 0, p = c.p || 0;
-  if (r >= 1) a.push('主臥');
-  if (r === 2) a.push('次臥'); else for (let i = 2; i <= r; i++) a.push('次臥' + (i - 1));
-  if (b === 1) a.push('浴室'); else if (b >= 2) { a.push('主浴', '客浴'); for (let i = 3; i <= b; i++) a.push('浴室' + i); }
-  if (p === 1) a.push('陽台'); else if (p === 2) a.push('前陽台', '後陽台'); else for (let i = 1; i <= p; i++) a.push('陽台' + i);
+  ['主臥室', '次臥室'].slice(0, r).forEach(x => a.push(x));
+  for (let i = 3; i <= r; i++) a.push('臥室' + (i - 2));
+  if (b === 1) a.push('衛浴'); else if (b >= 2) { a.push('主衛浴', '次衛浴'); for (let i = 3; i <= b; i++) a.push('衛浴' + i); }
+  ['陽台', '工作陽台', '露臺'].slice(0, p).forEach(x => a.push(x));
+  for (let i = 4; i <= p; i++) a.push('陽台' + i);
   return a;
 }
+// 有設格局的戶：「每戶都有的空間」裡的臥室、衛浴、陽台改用這戶自己的（露臺、工作陽台有勾就留著）
+const isGenRoom = x => /^(主臥室?|次臥室?|次臥\d+|臥室\d+|主衛浴|次衛浴|衛浴\d*|浴室\d*|主浴|客浴|陽台\d*|前陽台|後陽台)$/.test(x);
 // 選的戶別有設格局：每戶都有的空間＋這戶的房間；公設（梯廳…）不列空間；沒選戶別：列每戶都有的空間
 function roomsFor(l, u) {
   const c = u && l.unitRooms && l.unitRooms[u];
-  if (c) return [...new Set((l.rooms || []).filter(x => !GEN_ROOMS.includes(x)).concat(unitRoomNames(c)))];
+  if (c) return [...new Set((l.rooms || []).filter(x => !isGenRoom(x)).concat(unitRoomNames(c)))];
   if (u && !/戶$/.test(u)) return [];
   return l.rooms || [];
 }
@@ -1723,14 +1726,14 @@ VIEWS.projects = () => {
 const LOC_DEF = { b: 1, n: 5, r: 1, bldgs: [], floorsX: [],
   struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '電梯井', '女兒牆'],
   units: ['A戶', 'B戶', '梯廳', '走道', '樓梯間'],
-  rooms: ['客廳', '餐廳', '廚房', '玄關'],
+  rooms: ['玄關', '餐廳', '客廳', '廚房', '走廊'],
   unitRooms: { 'A戶': { r: 3, b: 2, p: 1 }, 'B戶': { r: 3, b: 2, p: 1 } },
   outer: ['正面外牆', '左面外牆', '右面外牆', '後面外牆', '屋頂', '中庭', '車道', '大門', '圍牆'] };
 // 建案位置規劃可以點的選項（點了才會出現在開單畫面；不夠可以「＋ 自己加」）
 const LOC_OPTS = {
   struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '筏基', '電梯井', '女兒牆', '陽台', '雨遮', '屋突', '地下室外牆', '車道'],
   units: ['A戶', 'B戶', 'C戶', 'D戶', 'E戶', 'F戶', 'G戶', 'H戶', '梯廳', '走道', '樓梯間', '電梯廳', '管委會', '交誼廳', '健身房', '垃圾間', '停車場'],
-  rooms: ['客廳', '餐廳', '廚房', '玄關', '走道', '書房', '和室', '工作陽台', '儲藏室', '更衣室'],
+  rooms: ['玄關', '餐廳', '客廳', '廚房', '主臥室', '次臥室', '臥室1', '臥室2', '主衛浴', '次衛浴', '陽台', '露臺', '工作陽台', '走廊'],
   outer: ['正面外牆', '左面外牆', '右面外牆', '後面外牆', '屋頂', '中庭', '車道', '大門', '圍牆', '景觀', '排水溝', '人行道', '機房', '水塔']
 };
 let plSel = null, plRooms = null;
@@ -1790,7 +1793,7 @@ function editProject(id) {
     ${txt('floorsX', '另外的樓層（可不填）', '例如：夾層、機房層')}
     ${plChips('units', '戶別／公設')}
     <label class="f">每戶格局（幾房、幾衛浴、幾個陽台）</label>
-    <div class="muted" style="font-size:13px">開單選了這一戶，空間就只出現這戶有的房間（3房＝主臥、次臥1、次臥2；2衛＝主浴、客浴；2陽台＝前陽台、後陽台）。</div>
+    <div class="muted" style="font-size:13px">開單選了這一戶，空間就只出現這戶有的房間（3房＝主臥室、次臥室、臥室1；2衛＝主衛浴、次衛浴；2陽台＝陽台、工作陽台；3陽台再加露臺）。</div>
     <div id="plu">${plUnitsHTML()}</div>
     ${plChips('rooms', '每戶都有的空間')}
     ${plChips('struct', '位置：結構')}
