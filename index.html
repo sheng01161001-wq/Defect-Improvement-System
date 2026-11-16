@@ -154,7 +154,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v30';
+const VERSION = 'v31';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -717,6 +717,7 @@ VIEWS.login = () => {
     <p class="muted">資料只存在這支手機。請填你的名字（會印在 PDF 的「開單人」）。</p>
     <label class="f">你的名字</label><input type="text" id="ln" maxlength="20">
     <label class="f">試用碼</label><input type="text" id="lt" maxlength="20" autocapitalize="characters" autocomplete="off">
+    <div class="muted" style="font-size:13px">輸入時會記錄名字和手機種類，讓提供的人知道誰在試用；缺失、照片不會傳出去。</div>
     <button class="btn block" id="lb" onclick="soloStart()">開始使用</button>
     <div class="ver">${VERSION}</div></div>`;
   if (!API) return `<div class="card login"><h3>還沒設定後端</h3><p class="muted">請聯絡管理者。</p></div>`;
@@ -762,15 +763,32 @@ async function trialCheck(code) {
   if (!(trialCfg.codes || []).concat(trialCfg.owners || []).includes(h)) throw new Error('試用碼不對，請跟提供的人確認');
   return h;
 }
+// 輸入試用碼時記一筆到公司後端（只有：哪組碼、名字、手機代號、手機種類；缺失資料不會傳）。沒網路就下次打開再傳
+function trialReport(h, name) {
+  let dev = localStorage.getItem(LS('dfi_dev'));
+  if (!dev) { dev = uid() + uid(); localStorage.setItem(LS('dfi_dev'), dev); }
+  const ua = (navigator.userAgent.match(/iPhone|iPad|Android[^;)]*|Windows|Macintosh/) || ['其他'])[0].slice(0, 60);
+  localStorage.setItem(LS('dfi_trialrep'), JSON.stringify({ h, name: String(name || '').slice(0, 20), dev, ua }));
+  trialSend();
+}
+async function trialSend() {
+  const r = localStorage.getItem(LS('dfi_trialrep'));
+  if (!r || LOCAL) return;   // 本機測試不要記到真的後端
+  try {
+    const res = await fetch(API_DEFAULT, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'trialLog' }, JSON.parse(r))) });
+    if ((await res.json()).ok) localStorage.removeItem(LS('dfi_trialrep'));
+  } catch (e) {}
+}
 async function trialEnter() {
   const b = $('tb'); b.disabled = true;
-  try { localStorage.setItem(LS('dfi_trial'), await trialCheck($('tc').value)); view = { name: 'start' }; render(); }
+  try { const h = await trialCheck($('tc').value); localStorage.setItem(LS('dfi_trial'), h); trialReport(h, auth && auth.me.name); view = { name: 'start' }; render(); }
   catch (e) { toast(e.message); b.disabled = false; }
 }
 VIEWS.trial = () => {
   hdr('缺失改善單機版');
   return `<div class="card login"><h3>🔑 請輸入試用碼</h3>
     <p class="muted">單機版目前是試用，請輸入提供給你的試用碼（第一次要連網路）。</p>
+    <p class="muted" style="font-size:13px">輸入時會記錄你的名字和手機種類，讓提供的人知道誰在試用；開的缺失、照片只在你的手機，不會傳出去。</p>
     <label class="f">試用碼</label><input type="text" id="tc" maxlength="20" autocapitalize="characters" autocomplete="off">
     <button class="btn block" id="tb" onclick="trialEnter()">確定</button><div class="ver">${VERSION}</div></div>`;
 };
@@ -779,7 +797,7 @@ const trialEndText = () => (trialCfg && (trialCfg.codes || []).includes(localSto
 async function soloStart(quiet) {
   const b = $('lb'); if (b) b.disabled = true;
   try {
-    if (!quiet && $('lt')) localStorage.setItem(LS('dfi_trial'), await trialCheck($('lt').value));
+    if (!quiet && $('lt')) { const h = await trialCheck($('lt').value); localStorage.setItem(LS('dfi_trial'), h); trialReport(h, $('ln') ? $('ln').value : ''); }
     setAuth(await api('soloAuth', { name: $('ln') ? $('ln').value : '' }));
     const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
     if (saved) state = saved;
@@ -1800,7 +1818,7 @@ function renderVendorPortal() {
 (async () => {
   if (VCODE) { render(); return; }
   // 單機版用過了（切回來、或登入資料不見）：直接進去，不用再填名字
-  if (SOLO) loadTrial().then(() => render(true));
+  if (SOLO) { loadTrial().then(() => render(true)); trialSend(); }
   if (SOLO && !auth) { try { setAuth(await api('soloAuth', {})); } catch (e) {} }
   if (SOLO && auth) {
     const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);

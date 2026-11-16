@@ -274,5 +274,16 @@ LR = okCall({ action: 'list', token: TA }, '讀（帳號還在）');
 ok(!LR.defects.length && !LR.projects.length && !LR.vendors.length && !LR.customs.length, '建案、廠商、常用語都清掉');
 okCall({ action: 'saveProject', token: TA, project: { id: 'proj09', name: '正式案' } }, '清完可以建新建案');
 
+// 單機版試用紀錄
+const H = 'a'.repeat(64);
+okCall({ action: 'trialLog', h: H, name: '小王', dev: 'dev123abc', ua: 'iPhone' }, '記錄試用碼輸入（不用登入）');
+okCall({ action: 'trialLog', h: H, name: '=HYPERLINK("x")', dev: 'dev999xyz' }, '第二支手機');
+badCall({ action: 'trialLog', h: 'xyz', name: 'a', dev: 'dev123abc' }, '雜湊格式不對');
+badCall({ action: 'trialLog', h: H, dev: '<script>' }, '手機代號格式不對');
+badCall({ action: 'trialList', key: 'short' }, '鑰匙太短');
+const TL = okCall({ action: 'trialList', key: 'k'.repeat(30) }, '第一次讀紀錄（設定鑰匙）');
+ok(TL.rows.length === 2 && TL.rows[0].name === '小王' && TL.rows[1].name === '=HYPERLINK("x")' && TL.rows[0].dev === 'dev123abc', '紀錄內容正確（公式不會被執行）');
+badCall({ action: 'trialList', key: 'z'.repeat(30) }, '別的鑰匙讀紀錄');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

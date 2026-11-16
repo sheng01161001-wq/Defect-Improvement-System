@@ -50,7 +50,8 @@ function doPost(e) {
 
 // 廠商用的（不用登入，靠回報碼）
 const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, vendorExport: vendorExport_,
-  vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_ };
+  vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_,
+  trialLog: trialLog_, trialList: trialList_ };
 const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, deleteVendor: deleteVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
 const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_, resetData: resetData_ };
@@ -360,6 +361,33 @@ function list_() {
     defects: defectRows_().map(outD_),
     customs: customs_().map(c => ({ kind: c.kind, key: c.key, text: c.text, byUser: c.byUser })),
   };
+}
+
+// ── 單機版試用紀錄（2026-11-16 使用者要求：只記輸入試用碼，不擋人；缺失資料不會傳上來）──
+// 單機版輸入試用碼時傳：試用碼的雜湊、填的名字、手機代號（App 自己亂數產生）、手機型號概略。
+// 讀紀錄要「試用管理」的鑰匙（第一次讀的時候設定，存在指令碼屬性 TRIAL_KEY）。
+function trialSheet_() {
+  const ss = SpreadsheetApp.openById(props_().getProperty('SS_ID'));
+  let sh = ss.getSheetByName('試用紀錄');
+  if (!sh) { sh = ss.insertSheet('試用紀錄'); sh.appendRow(['時間', '試用碼雜湊', '名字', '手機代號', '手機']); }
+  return sh;
+}
+function trialLog_(q) {
+  const h = String(q.h || ''), dev = String(q.dev || '');
+  if (!/^[0-9a-f]{64}$/.test(h) || !/^[a-z0-9]{6,40}$/i.test(dev)) throw new Error('資料不對');
+  const sh = trialSheet_();
+  if (sh.getLastRow() > 5000) return {};   // 防亂灌
+  sh.appendRow([now_(), h, txt_(str_(q.name, 20)), dev, txt_(str_(q.ua, 60))]);
+  return {};
+}
+function trialList_(q) {
+  const key = String(q.key || ''), p = props_();
+  if (key.length < 20) throw new Error('鑰匙不對');
+  if (!p.getProperty('TRIAL_KEY')) p.setProperty('TRIAL_KEY', key);   // 第一次讀的人設定鑰匙
+  if (p.getProperty('TRIAL_KEY') !== key) throw new Error('鑰匙不對');
+  const sh = trialSheet_(), last = sh.getLastRow();
+  if (last < 2) return { rows: [] };
+  return { rows: sh.getRange(2, 1, last - 1, 5).getValues().map(r => ({ at: timeStr_(r[0]), h: String(r[1]), name: un_(r[2]), dev: String(r[3]), ua: un_(r[4]) })) };
 }
 
 // ── 大家自己加的工項、常用語（全公司共用）──────────
