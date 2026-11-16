@@ -276,6 +276,25 @@ LR = okCall({ action: 'list', token: TA }, '讀（帳號還在）');
 ok(!LR.defects.length && !LR.projects.length && !LR.vendors.length && !LR.customs.length, '建案、廠商、常用語都清掉');
 okCall({ action: 'saveProject', token: TA, project: { id: 'proj09', name: '正式案' } }, '清完可以建新建案');
 
+// 刪除建案
+okCall({ action: 'saveProject', token: TA, project: { id: 'projdel', name: '要刪的案' } }, '建要刪的建案');
+okCall({ action: 'saveProject', token: TA, project: { id: 'projkeep', name: '留著的案' } }, '建留著的建案');
+okCall({ action: 'saveVendor', token: TA, vendor: { id: 'vendel1', name: '兩案廠商', cat: '結構體', trades: ['水電'], pids: ['projdel', 'projkeep'] } }, '廠商在兩個建案');
+okCall({ action: 'uploadPhoto', token: TA, id: 'phdel01', data: img }, '照片（只有要刪的案用）');
+okCall({ action: 'uploadPhoto', token: TA, id: 'phshare', data: img }, '照片（兩案共用）');
+okCall({ action: 'saveDefect', token: TA, defect: Object.assign({}, D, { id: 'dd00001', pid: 'projdel', vid: 'vendel1', photos: ['phdel01', 'phshare'] }), baseV: 0 }, '要刪的案開單1');
+okCall({ action: 'saveDefect', token: TA, defect: Object.assign({}, D, { id: 'dd00002', pid: 'projdel', vid: 'vendel1', photos: [] }), baseV: 0 }, '要刪的案開單2');
+okCall({ action: 'saveDefect', token: TA, defect: Object.assign({}, D, { id: 'dk00001', pid: 'projkeep', vid: 'vendel1', photos: ['phshare'] }), baseV: 0 }, '留著的案開單');
+badCall({ action: 'deleteProject', token: TB, id: 'projdel', confirm: '要刪的案' }, '工地人員刪建案');
+badCall({ action: 'deleteProject', token: TA, id: 'projdel', confirm: '要刪' }, '建案名稱打錯');
+const DP = okCall({ action: 'deleteProject', token: TA, id: 'projdel', confirm: '要刪的案' }, '後台刪建案');
+const LD = okCall({ action: 'list', token: TA }, '讀');
+ok(DP.defects === 2 && !LD.projects.some(p => p.id === 'projdel') && LD.projects.some(p => p.id === 'projkeep'), '建案刪掉、別的建案還在');
+ok(!LD.defects.some(d => d.pid === 'projdel') && LD.defects.some(d => d.id === 'dk00001'), '它的缺失刪掉、別案缺失還在');
+ok(LD.vendors.find(v => v.id === 'vendel1').pids.join() === 'projkeep', '廠商留著、只移出這個建案');
+const fDel = env._files.find(f => f.name === 'phdel01.jpg'), fShare = env._files.find(f => f.name === 'phshare.jpg');
+ok(fDel && fDel.trashed && fShare && !fShare.trashed, '只有它用的照片丟垃圾桶，共用的留著');
+
 // 單機版試用紀錄
 const H = 'a'.repeat(64);
 okCall({ action: 'trialLog', h: H, name: '小王', dev: 'dev123abc', ua: 'iPhone' }, '記錄試用碼輸入（不用登入）');

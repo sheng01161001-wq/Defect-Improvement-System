@@ -146,7 +146,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v38';
+const VERSION = 'v39';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -1799,7 +1799,32 @@ function editProject(id) {
     ${plChips('struct', '位置：結構')}
     ${plChips('outer', '位置：室外（外牆用 正面／左面／右面／後面）')}
     ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
-    <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+    <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>
+    ${p && isAdmin() ? `<button class="btn ghost block" style="color:#c92a2a;margin-top:16px" onclick="deleteProjectAsk('${p.id}')">🗑 刪除這個建案</button>` : ''}`);
+}
+// 刪除建案（後台）：缺失、照片一起刪；廠商留著只移出這個建案；要打建案名稱確認
+function deleteProjectAsk(id) {
+  const p = state.projects.find(x => x.id === id);
+  if (!p) return;
+  if (!SOLO && pendingCount()) { toast('還有資料沒上傳，等上傳完再刪'); return; }
+  const n = Object.values(state.defects).filter(d => d.pid === id).length;
+  sheet(`<h3>🗑 刪除建案「${esc(p.name)}」</h3>
+    <div class="muted">${n ? `這個建案的 <b>${n} 筆缺失</b>和照片會一起刪掉，${SOLO ? '<b>刪了不能復原</b>（要的話先到 ⚙ 備份）' : '照片會丟到雲端硬碟垃圾桶，30 天內還能救'}。` : '這個建案沒有缺失。'}廠商會留著，只從這個建案移出。</div>
+    ${n ? '<div class="muted" style="margin-top:6px">只是完工了、資料想留著：不用刪，回上一頁勾「停用」就好。</div>' : ''}
+    <label class="f">確定要刪，請打建案名稱「${esc(p.name)}」</label><input type="text" id="dpc" autocomplete="off">
+    <button class="btn block" style="background:#c92a2a" onclick="doDeleteProject('${p.id}',this)">刪除</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function doDeleteProject(id, b) {
+  b.disabled = true;
+  try {
+    const r = await api('deleteProject', { id, confirm: $('dpc').value.trim() });
+    state.projects = state.projects.filter(x => x.id !== id);
+    Object.keys(state.defects).forEach(k => { if (state.defects[k].pid === id) delete state.defects[k]; });
+    state.vendors.forEach(v => { if (v.pids) v.pids = v.pids.filter(x => x !== id); });
+    if (localStorage.getItem(LS('dfi_pid')) === id) localStorage.removeItem(LS('dfi_pid'));
+    persistNow(); closeLayer(); render();
+    toast(r.defects ? `建案已刪除（缺失 ${r.defects} 筆一起刪掉）` : '建案已刪除');
+  } catch (e) { toast(e.message); b.disabled = false; }
 }
 async function saveProject(id, b) {
   b.disabled = true;

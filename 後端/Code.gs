@@ -54,7 +54,7 @@ const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, v
   trialLog: trialLog_, trialList: trialList_, trialSync: trialSync_ };
 const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, deleteVendor: deleteVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
-const ADMIN_ = { saveProject: saveProject_, listUsers: listUsers_, saveUser: saveUser_, resetData: resetData_ };
+const ADMIN_ = { saveProject: saveProject_, deleteProject: deleteProject_, listUsers: listUsers_, saveUser: saveUser_, resetData: resetData_ };
 
 function handle_(q) {
   if (!props_().getProperty('SS_ID')) 初始化();
@@ -281,6 +281,25 @@ function resetData_(q) {
     trashAll(exportFolder_());
     if (q.mode === 'all') { clear('建案'); clear('廠商'); clear('常用'); }
     return { defects: nD, photos: nPh };
+  });
+}
+
+// 刪除建案（後台，要打建案名稱確認）：建案、它的缺失、只有它用到的照片（丟垃圾桶）一起刪；廠商留著，只從這個建案移出
+function deleteProject_(q) {
+  return withLock_(() => {
+    const p = projects_().find(x => x.id === q.id);
+    if (!p) return { defects: 0 };
+    if (String(q.confirm || '').trim() !== p.name) throw new Error('請打建案名稱「' + p.name + '」確認');
+    const all = defectRows_(), mine = all.filter(h => h.d.pid === p.id), keep = all.filter(h => h.d.pid !== p.id);
+    const ids = [];
+    mine.forEach(h => photosOfD_(h.d).forEach(id => ids.push(id)));
+    trashPhotos_(ids, keep, null);
+    const ds = sheet_('缺失');
+    mine.map(h => h.row).sort((a, b) => b - a).forEach(r => ds.deleteRow(r));   // 從下面刪，列號才不會跑掉
+    const vs = sheet_('廠商');
+    vendors_().forEach(v => { if (v.pids.indexOf(p.id) >= 0) vs.getRange(v.row, 10).setValue(v.pids.filter(x => x !== p.id).join(',')); });
+    sheet_('建案').deleteRow(p.row);
+    return { defects: mine.length };
   });
 }
 
