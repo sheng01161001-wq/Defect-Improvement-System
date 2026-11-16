@@ -148,7 +148,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v40';
+const VERSION = 'v41';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -763,12 +763,24 @@ async function trialCheck(code) {
   return h;
 }
 // 輸入試用碼時記一筆到公司後端（只有：哪組碼、名字、手機代號、手機種類；缺失資料不會傳）。沒網路就下次打開再傳
-function trialReport(h, name) {
+function trialReport(h, name, was) {
   let dev = localStorage.getItem(LS('dfi_dev'));
   if (!dev) { dev = uid() + uid(); localStorage.setItem(LS('dfi_dev'), dev); }
   const ua = (navigator.userAgent.match(/iPhone|iPad|Android[^;)]*|Windows|Macintosh/) || ['其他'])[0].slice(0, 60);
-  localStorage.setItem(LS('dfi_trialrep'), JSON.stringify({ h, name: String(name || '').slice(0, 20), dev, ua }));
+  const rep = { h, name: String(name || '').slice(0, 20), dev, ua };
+  if (was && was !== dev) rep.was = was;
+  localStorage.setItem(LS('dfi_trialrep'), JSON.stringify(rep));
   trialSend();
+}
+// 還原備份後：用備份裡的名字（和備份裡的手機代號）重記一筆，重裝時臨時記的那筆會被換掉
+function trialAfterRestore() {
+  const f = localStorage.getItem(LS('dfi_trialfix')), h = localStorage.getItem(LS('dfi_trial'));
+  if (!f) return;
+  localStorage.removeItem(LS('dfi_trialfix'));
+  if (!h || !auth) return;
+  let was = '';
+  try { was = JSON.parse(f).was || ''; } catch (e) {}
+  trialReport(h, auth.me.name, was);
 }
 const TRIAL_API = (LOCAL && localStorage.getItem('dfi_api')) || API_DEFAULT;
 async function trialSend() {
@@ -776,7 +788,7 @@ async function trialSend() {
   if (!r || (LOCAL && !localStorage.getItem('dfi_api'))) return;   // 本機測試不要記到真的後端
   try {
     const res = await fetch(TRIAL_API, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'trialLog' }, JSON.parse(r))) });
-    if ((await res.json()).ok) localStorage.removeItem(LS('dfi_trialrep'));
+    if ((await res.json()).ok && localStorage.getItem(LS('dfi_trialrep')) === r) localStorage.removeItem(LS('dfi_trialrep'));   // 傳的時候又有新的一筆就留著
   } catch (e) {}
 }
 function trialSave(h, code) {
@@ -817,20 +829,32 @@ VIEWS.trials = () => {
   if (trialData.loading) return '<div class="empty">讀取中…</div>';
   if (trialData.err) return `<div class="card"><p>${esc(trialData.err)}</p><button class="btn block" onclick="trialData=null;render()">再試一次</button></div>`;
   if (!trialData.codes.length) return '<div class="card">清單還沒同步上來：到電腦打開「缺失改善單機版試用管理」隨便做一個動作（例如 7 改備註）就會同步。</div>';
-  const by = {};
-  trialData.rows.forEach(r => { const d = (by[r.h] = by[r.h] || {}); d[r.dev] = r; });   // 同一支手機只留最後一筆
+  const by = trialPhones(trialData.rows);
   const until = trialCfg && trialCfg.until, ended = until && ymd(new Date()) > until;
-  const fr = trialData.codes.filter(c => !c.owner), used = fr.filter(c => by[c.h]).length, warn = fr.filter(c => Object.keys(by[c.h] || {}).length > 1).length;
+  const fr = trialData.codes.filter(c => !c.owner), used = fr.filter(c => by[c.h]).length, warn = fr.filter(c => (by[c.h] || []).length > 1).length;
   return `<div class="card"><div>到期日：<b>${esc(String(until || '（沒設）').replace(/-/g, '/'))}</b>　${ended ? '<span class="tag" style="background:#c92a2a">已到期</span>' : '<span class="tag" style="background:#2b8a3e">試用中</span>'}</div>
       <div class="muted" style="margin-top:4px">朋友的碼 ${fr.length} 組：${used} 組有人用${warn ? `，<b style="color:#c92a2a">⚠ ${warn} 組不只一支手機（可能被轉傳）</b>` : ''}</div>
       <div class="muted" style="font-size:13px;margin-top:4px">新增、停用、改到期日、改備註：用電腦的「缺失改善單機版試用管理」。</div></div>
-    ${trialData.codes.map(c => { const devs = Object.values(by[c.h] || {}), n = devs.length;
+    ${trialData.codes.map(c => { const devs = by[c.h] || [], n = devs.length;
       return `<div class="card" style="${!c.active ? 'opacity:.55' : ''}">
         <div class="row" style="align-items:center;gap:6px"><b style="font-size:18px;letter-spacing:1px">${esc(c.code)}</b><span class="grow">${esc(c.name || '')}</span>
           ${c.owner ? '<span class="tag" style="background:#1971c2">自己用</span>' : ''}${c.active ? '' : '<span class="tag" style="background:#868e96">已停用</span>'}</div>
         <div style="margin-top:4px;${n > 1 ? 'color:#c92a2a;font-weight:bold' : 'color:var(--muted)'}">${n > 1 ? `⚠ ${n} 支手機` : n ? '1 支手機' : '還沒人用'}</div>
-        ${devs.map(d => `<div class="muted" style="font-size:14px">・${esc(d.name || '（沒填名字）')}　${esc(d.ua)}　${esc(d.at)}</div>`).join('')}</div>`; }).join('')}`;
+        ${devs.map(d => `<div class="muted" style="font-size:14px">・${esc(d.name || '（沒填名字）')}　${esc(d.ua)}　${esc(d.at)}${d.re ? `　（重裝過 ${d.re} 次）` : ''}</div>`).join('')}</div>`; }).join('')}`;
 };
+// 每組碼有幾支手機：同一個手機代號只留最後一筆；名字和手機種類都一樣的（刪掉 App 重裝）算同一支
+function trialPhones(rows) {
+  const last = {};
+  rows.forEach(r => { last[r.h + '|' + r.dev] = r; });
+  const by = {};
+  Object.values(last).forEach(r => {
+    const nm = String(r.name || '').trim(), g = (by[r.h] = by[r.h] || {}), k = nm ? nm + '|' + r.ua : 'dev|' + r.dev;   // 沒填名字的不合併
+    if (!g[k]) g[k] = Object.assign({ re: 0 }, r);
+    else { g[k].re++; if (String(r.at) > String(g[k].at)) g[k].at = r.at; }
+  });
+  Object.keys(by).forEach(h => { by[h] = Object.values(by[h]); });
+  return by;
+}
 async function trialEnter() {
   const b = $('tb'); b.disabled = true;
   try { const h = await trialCheck($('tc').value); trialSave(h, $('tc').value); trialReport(h, auth && auth.me.name); view = { name: 'start' }; render(); }
@@ -1871,6 +1895,7 @@ async function soloBackup() {
   try {
     await syncNow();
     const o = await SoloBackend.backup(), at = new Date();
+    o.dev = localStorage.getItem(LS('dfi_dev')) || '';   // 手機代號：還原時帶回去，試用紀錄才不會多一支手機
     const name = '缺失改善備份_' + ymd(at).replace(/-/g, '') + '.json';
     const file = new File([JSON.stringify(o)], name, { type: 'application/json' });
     lastExport = { file, url: URL.createObjectURL(file), name, text: '缺失改善系統備份 ' + ymd(at) };
@@ -1897,6 +1922,9 @@ async function soloRestore(f) {
     await SoloBackend.restore(o);
     await idbDel('kv', CK); await idbDel('kv', OK);
     localStorage.removeItem(LS('dfi_draft'));
+    const was = localStorage.getItem(LS('dfi_dev')) || '';
+    if (/^[a-z0-9]{6,40}$/i.test(o.dev || '')) localStorage.setItem(LS('dfi_dev'), o.dev);
+    localStorage.setItem(LS('dfi_trialfix'), JSON.stringify({ was }));   // 重開後用備份的名字重記試用紀錄
     toast('已還原'); setTimeout(() => location.reload(), 600);
   } catch (e) { toast(e.message.includes('JSON') ? '這不是缺失改善系統的備份檔' : e.message); }
 }
@@ -1962,6 +1990,7 @@ function renderVendorPortal() {
     fixLoaded();
     resumeDraft();
     render();
+    trialAfterRestore();
     soloStart(true).then(() => { if (pendingCount()) sync(); });
   } else if (auth) {
     const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);

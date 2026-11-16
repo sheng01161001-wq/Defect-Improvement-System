@@ -326,6 +326,20 @@ okCall({ action: 'trialSync', key: 'k'.repeat(30), codes: [{ code: 'old111', nam
 badCall({ action: 'trialList', owner: 'old111' }, '停用的自己碼不能看');
 const TO = okCall({ action: 'trialList', owner: 'own123' }, '自己的碼看管理頁');
 ok(TO.codes.length === 3 && TO.codes[2].name === '小王' && TO.rows.length === 2, '看得到號碼和紀錄');
+// 重裝後還原備份：臨時代號那筆換成備份裡的代號＋名字
+const H2 = 'b'.repeat(64);
+okCall({ action: 'trialLog', h: H2, name: '阿明', dev: 'olddev111', ua: 'iPhone' }, '原本的手機');
+okCall({ action: 'trialLog', h: H2, name: '亂打', dev: 'tmpdev222', ua: 'iPhone' }, '重裝後臨時代號');
+okCall({ action: 'trialLog', h: H2, name: '阿明', dev: 'olddev111', ua: 'iPhone', was: 'tmpdev222' }, '還原備份後重記');
+let TR = okCall({ action: 'trialList', key: 'k'.repeat(30) }, '讀紀錄');
+const rH2 = TR.rows.filter(r => r.h === H2);
+ok(rH2.length === 2 && rH2.every(r => r.dev === 'olddev111' && r.name === '阿明'), '臨時那筆刪掉、只剩原本手機');
+ok(TR.rows.filter(r => r.h === H).length === 2, '別組碼的紀錄沒被動到');
+badCall({ action: 'trialDel', key: 'z'.repeat(30), h: H2 }, '別的鑰匙不能刪紀錄');
+badCall({ action: 'trialDel', key: 'k'.repeat(30), h: 'xyz' }, '刪紀錄雜湊格式不對');
+const TD = okCall({ action: 'trialDel', key: 'k'.repeat(30), h: H2 }, '刪某組碼的紀錄');
+TR = okCall({ action: 'trialList', key: 'k'.repeat(30) }, '再讀紀錄');
+ok(TD.n === 2 && !TR.rows.some(r => r.h === H2) && TR.rows.length === 2, '只刪那一組');
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

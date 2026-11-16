@@ -51,7 +51,7 @@ function doPost(e) {
 // 廠商用的（不用登入，靠回報碼）
 const PUBLIC_ = { hasUsers: hasUsers_, setupFirst: setupFirst_, login: login_, vendorExport: vendorExport_,
   vendorList: vendorList_, vendorPhotos: vendorPhotos_, vendorUpload: vendorUpload_, vendorAck: vendorAck_, vendorReport: vendorReport_,
-  trialLog: trialLog_, trialList: trialList_, trialSync: trialSync_ };
+  trialLog: trialLog_, trialList: trialList_, trialSync: trialSync_, trialDel: trialDel_ };
 const USER_ = { me: me_, list: list_, exportFile: exportFile_, markSent: markSent_, saveDefect: saveDefect_, deleteDefect: deleteDefect_, saveVendor: saveVendor_, deleteVendor: deleteVendor_, saveCustom: saveCustom_,
   uploadPhoto: uploadPhoto_, getPhotos: getPhotos_, changePass: changePass_ };
 const ADMIN_ = { saveProject: saveProject_, deleteProject: deleteProject_, listUsers: listUsers_, saveUser: saveUser_, resetData: resetData_ };
@@ -399,10 +399,31 @@ function trialSheet_() {
 function trialLog_(q) {
   const h = String(q.h || ''), dev = String(q.dev || '');
   if (!/^[0-9a-f]{64}$/.test(h) || !/^[a-z0-9]{6,40}$/i.test(dev)) throw new Error('資料不對');
-  const sh = trialSheet_();
-  if (sh.getLastRow() > 5000) return {};   // 防亂灌
-  sh.appendRow([now_(), h, txt_(str_(q.name, 20)), dev, txt_(str_(q.ua, 60))]);
-  return {};
+  return withLock_(() => {   // 有刪列：鎖起來，別人同時寫入才不會刪錯列
+    const sh = trialSheet_();
+    if (sh.getLastRow() > 5000) return {};   // 防亂灌
+    // 還原備份時：手機代號換回備份裡的那個（was＝重裝後臨時產生的代號），臨時那筆刪掉，才不會變成兩支手機
+    const was = String(q.was || '');
+    if (was && was !== dev && /^[a-z0-9]{6,40}$/i.test(was)) delTrialRows_(sh, r => String(r[1]) === h && String(r[3]) === was);
+    sh.appendRow([now_(), h, txt_(str_(q.name, 20)), dev, txt_(str_(q.ua, 60))]);
+    return {};
+  });
+}
+// 從下面往上刪，列號才不會跑掉
+function delTrialRows_(sh, hit) {
+  const last = sh.getLastRow();
+  if (last < 2) return 0;
+  const vals = sh.getRange(2, 1, last - 1, 5).getValues();
+  let n = 0;
+  for (let i = vals.length - 1; i >= 0; i--) if (hit(vals[i])) { sh.deleteRow(i + 2); n++; }
+  return n;
+}
+// 電腦的試用管理：刪掉某一組碼的全部使用紀錄（要鑰匙）
+function trialDel_(q) {
+  if (!trialKeyOk_(q.key)) throw new Error('鑰匙不對');
+  const h = String(q.h || '');
+  if (!/^[0-9a-f]{64}$/.test(h)) throw new Error('資料不對');
+  return withLock_(() => ({ n: delTrialRows_(trialSheet_(), r => String(r[1]) === h) }));
 }
 function trialKeyOk_(key) {
   key = String(key || '');
