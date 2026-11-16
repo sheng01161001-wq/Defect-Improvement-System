@@ -144,7 +144,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v26';
+const VERSION = 'v27';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -884,38 +884,41 @@ VIEWS.edit = () => {
        <button class="btn line block" onclick="saveDraft(true)">儲存並傳 PDF 給廠商</button>
        <div class="muted" style="text-align:center;margin-top:4px">也可以只按「儲存缺失」，收工前到總覽一次傳給廠商</div>`}`;
 };
-// 位置：依建案的位置規劃用點的（棟只有一棟就不顯示）。位置存成「位置 空間」，例如「A戶 主臥」、「柱」
-const locPlaces = l => [...new Set([].concat(l.struct || [], l.units || [], l.outer || []))];
+// 位置：依建案的位置規劃用點的（棟只有一棟就不顯示）。
+// 位置存成「戶別 位置1 位置2…」，例如「A戶 浴室 牆」；位置可以點好幾個，戶別只選一個
+const placesOf = l => [...new Set([].concat(l.struct || [], l.rooms || [], l.outer || []))];
 function spotParts(d, l) {
-  const t = String(d.spot || '').split(' ').filter(Boolean);
-  if (t.length >= 2) return { u: t[0], r: t.slice(1).join(' ') };
-  return (l.rooms || []).includes(t[0]) && !locPlaces(l).includes(t[0]) ? { u: '', r: t[0] || '' } : { u: t[0] || '', r: '' };
+  const t = String(d.spot || '').split(' ').filter(Boolean), units = l.units || [];
+  const u = t.find(x => units.includes(x)) || '';
+  return { u, ps: t.filter(x => x !== u) };
 }
-function locChips(list, cur, fn) {
-  const all = cur && !list.includes(cur) ? list.concat([cur]) : list;   // 舊資料不在清單裡也要看得到
-  return `<div class="chips">${all.map(x => `<button class="chip ${cur === x ? 'on' : ''}" onclick="${fn}(${jsq(x)})">${esc(x)}</button>`).join('')}</div>`;
+function setSpot(u, ps) {
+  const l = curP().loc, all = [].concat(l.rooms || [], l.outer || [], l.struct || []), i = x => (all.indexOf(x) + 1 || 999);   // 寫成「A戶 浴室 牆」：空間在前、構件在後
+  draft.spot = [u].concat(ps.slice().sort((a, b) => i(a) - i(b))).filter(Boolean).join(' ');
+  keepDraft(); render();
+}
+function locChips(list, on, fn) {
+  return `<div class="chips">${list.map(x => `<button class="chip ${on.includes(x) ? 'on' : ''}" onclick="${fn}(${jsq(x)})">${esc(x)}</button>`).join('')}</div>`;
 }
 function locPickHTML(d, l) {
   const fl = floorsOf(l), floors = d.floor && !fl.includes(d.floor) ? fl.concat([d.floor]) : fl, sp = spotParts(d, l);
   const bl = l.bldgs || [], showB = bl.length > 1 || (d.bldg && !bl.includes(d.bldg));
-  const row = (label, list) => (list || []).length ? `<div class="muted" style="margin-top:4px">${label}</div>${locChips(list, list.includes(sp.u) ? sp.u : '', 'pickSpot')}` : '';
-  return `${showB ? `<label class="f">棟別</label>${locChips(bl, d.bldg, 'pickBldg')}` : ''}
+  const extra = sp.ps.filter(x => !placesOf(l).includes(x));   // 舊資料不在清單裡也要看得到
+  const row = (label, list) => (list || []).length ? `<div class="muted" style="margin-top:4px">${label}</div>${locChips(list, sp.ps, 'pickPlace')}` : '';
+  const units = (l.units || []).concat(sp.u && !(l.units || []).includes(sp.u) ? [sp.u] : []);
+  return `${showB ? `<label class="f">棟別</label>${locChips(bl, [d.bldg], 'pickBldg')}` : ''}
     <label class="f">樓層</label>
     <select onchange="draft.floor=this.value;keepDraft()"><option value="">— 選樓層 —</option>${floors.map(f => `<option ${d.floor === f ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
-    <label class="f">位置</label>
-    ${row('結構', l.struct)}${row('戶別／公設', l.units)}${row('室外', l.outer)}
-    ${sp.u && !locPlaces(l).includes(sp.u) ? locChips([], sp.u, 'pickSpot') : ''}
-    ${!locPlaces(l).length && !sp.u ? '<div class="muted">建案的位置規劃裡還沒有位置，請後台到建案管理加</div>' : ''}
-    ${(l.rooms || []).length || sp.r ? `<label class="f">空間（可不選）</label>${locChips(l.rooms || [], sp.r, 'pickRoom')}` : ''}`;
+    <label class="f">位置（可以點好幾個）</label>
+    ${row('結構', l.struct)}${row('空間', l.rooms)}${row('室外', l.outer)}${extra.length ? locChips(extra, extra, 'pickPlace') : ''}
+    ${!placesOf(l).length && !extra.length ? '<div class="muted">建案的位置規劃裡還沒有位置，請後台到建案管理加</div>' : ''}
+    ${units.length ? `<label class="f">戶別／公設（可不選）</label>${locChips(units, [sp.u], 'pickUnit')}` : ''}`;
 }
 function pickBldg(x) { draft.bldg = draft.bldg === x ? '' : x; keepDraft(); render(); }
-function pickSpot(x) {
-  const sp = spotParts(draft, curP().loc), u = sp.u === x ? '' : x;
-  draft.spot = [u, sp.r].filter(Boolean).join(' '); keepDraft(); render();
-}
-function pickRoom(x) {
-  const sp = spotParts(draft, curP().loc), r = sp.r === x ? '' : x;
-  draft.spot = [sp.u, r].filter(Boolean).join(' '); keepDraft(); render();
+function pickUnit(x) { const sp = spotParts(draft, curP().loc); setSpot(sp.u === x ? '' : x, sp.ps); }
+function pickPlace(x) {
+  const sp = spotParts(draft, curP().loc);
+  setSpot(sp.u, sp.ps.includes(x) ? sp.ps.filter(y => y !== x) : sp.ps.concat([x]));
 }
 // 大家自己加的工項／常用語（雲端共用；沒網路先記著，有網路再上傳）
 function applyCustom(list, o) {
@@ -956,6 +959,7 @@ function newPhrase() {
   addMine('phrase', catOfTrade(t, vendorOf(draft.vid)) + '|' + t, x);
   addPhrase(x); render();
 }
+// 廠商：先點工項，再點那個工項的廠商（廠商多也不用一直往下拉）
 function vendorChipsHTML(d, multi) {
   const pv = projVendors().filter(v => !v.disabled), ov = d._allV ? otherVendors() : [];
   const sel = multi ? (d.vids || []) : [d.vid];
@@ -963,14 +967,31 @@ function vendorChipsHTML(d, multi) {
   const groups = {};
   pv.forEach(v => { const k = vTrade(v) || '未設工項'; (groups[k] = groups[k] || []).push(v); });
   const order = allTrades().concat(Object.keys(groups)).filter((k, i, a) => groups[k] && a.indexOf(k) === i);
-  let h = pv.length ? order.map(k => `<div style="margin-bottom:4px"><span class="muted">${esc(k)}</span><div class="chips">${groups[k].map(chip).join('')}</div></div>`).join('')
-    : '<div class="muted">這個建案還沒有廠商，按下面「＋ 新增廠商」</div>';
+  const cur = d._vt || '';
+  let h = '';
+  // 已選的廠商放最上面
+  const picked = sel.filter(Boolean);
+  if (picked.length) h += `<div class="chips" style="margin-bottom:4px">${picked.map(id => { const v = vendorOf(id); return `<button class="chip on" onclick="${multi ? 'togMulti' : 'pickVendor'}('${id}')">✔ ${esc(v ? v.name : vName(id))}${v && vTrade(v) ? `（${esc(vTrade(v))}）` : ''} ✕</button>`; }).join('')}</div>`;
+  if (pv.length) {
+    h += `<div class="chips">${order.map(k => { const n = groups[k].filter(v => sel.includes(v.id)).length;
+      return `<button class="chip ${cur === k ? 'on' : ''}" style="${cur === k ? '' : 'background:#fff4e6;border-color:#ffc078'}" onclick="pickVT(${jsq(k)})">${esc(k)}${n ? ` ✔${multi ? n : ''}` : ''}</button>`; }).join('')}</div>`;
+    if (cur && groups[cur]) h += `<div style="margin:6px 0 4px;padding:8px;background:#f8f9fa;border-radius:10px"><span class="muted">${esc(cur)} 的廠商</span><div class="chips">${groups[cur].map(chip).join('')}</div></div>`;
+    else if (!picked.length) h += '<div class="muted" style="margin-top:2px">先點工項，再點廠商</div>';
+  } else h += '<div class="muted">這個建案還沒有廠商，按下面「＋ 新增廠商」</div>';
   if (ov.length) h += `<div style="margin-bottom:4px"><span class="muted">其他建案的廠商（選了會加入這個建案）</span><div class="chips">${ov.map(chip).join('')}</div></div>`;
-  if (!multi && d.vid && !pv.concat(ov).some(v => v.id === d.vid)) h = `<div class="chips" style="margin-bottom:4px"><button class="chip on">✔ ${esc(vName(d.vid))}</button></div>` + h;
   const all = pv.length && pv.every(v => sel.includes(v.id));
   return h + `<div class="chips" style="margin-top:4px">${multi && pv.length ? `<button class="chip add" onclick="multiAll(${all ? 0 : 1})">${all ? '全部取消' : `全選（${pv.length} 家）`}</button>` : ''}
     ${!d._allV && otherVendors().length ? '<button class="chip add" onclick="draft._allV=true;render()">其他建案的廠商…</button>' : ''}
     <button class="chip add" onclick="newVendor()">＋ 新增廠商</button></div>`;
+}
+// 點工項：打開（再點一次收起來）；只有一家廠商就直接選好
+function pickVT(k) {
+  draft._vt = draft._vt === k ? '' : k;
+  if (draft._vt && !draft._multi) {
+    const g = projVendors().filter(v => !v.disabled && (vTrade(v) || '未設工項') === k);
+    if (g.length === 1 && draft.vid !== g[0].id) { pickVendor(g[0].id); return; }
+  }
+  keepDraft(); render();
 }
 function togMulti(id) {
   const a = draft.vids = draft.vids || [], i = a.indexOf(id);
@@ -982,7 +1003,7 @@ function multiAll(on) { draft.vids = on ? projVendors().filter(v => !v.disabled)
 function pickVendor(id) {
   if (draft.vid === id) { draft.vid = ''; keepDraft(); render(); return; }
   const v = vendorOf(id);
-  draft.vid = id;
+  draft.vid = id; draft._vt = '';   // 選好就收起來，畫面比較短
   if (v && vTrade(v)) { draft.trade = vTrade(v); draft.cat = catOfTrade(draft.trade, v); }
   // 選了其他建案的廠商：先在手機上加入這個建案（上傳時後端也會自動加）
   if (v && !inProj(v, draft.pid)) {
@@ -1009,7 +1030,7 @@ async function saveDraft(withLine) {
   if (multi && !vids.length) { toast('請勾選要派的廠商'); return; }
   if (withLine && !vids[0]) { toast('請先選廠商'); return; }
   const newPh = d.photos.filter(id => !(d._orig || []).includes(id));
-  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV; delete out._multi; delete out.vids; delete out._t;
+  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV; delete out._multi; delete out.vids; delete out._t; delete out._vt;
   if (isNew) { out.v = 0; out.by = auth.me.name; out.byUser = auth.me.user; out.created = ''; }
   else { const old = state.defects[d.id]; if (!old) { toast('這筆缺失已被刪除'); return; } SERVER_KEYS.forEach(k => { out[k] = old[k]; }); out.v = old.v; out.reviews = old.reviews; out.status = old.status; }
   // 派給好幾家：每家各開一張單（同一組 grp、共用照片）
