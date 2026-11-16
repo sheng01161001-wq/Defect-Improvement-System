@@ -146,7 +146,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v39';
+const VERSION = 'v40';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -603,7 +603,12 @@ window.addEventListener('pagehide', () => persistNow());
 window.addEventListener('online', () => { if (auth) syncNow(); });
 
 // ── 目前建案 ─────────────────────────────
-const activeProjects = () => state.projects.filter(p => !p.disabled);
+// 建案狀態：使用中／完工（還看得到、排在首頁下面）／停用（只在管理建案看得到）
+const projSt = p => p.disabled ? 'off' : p.done ? 'done' : 'on';
+const PROJ_ST = { on: '使用中', done: '完工', off: '停用' };
+const projTag = p => p.disabled ? '<span class="tag pend">停用</span>' : p.done ? '<span class="tag s-done">完工</span>' : '';
+// 沒停用的建案，使用中的排前面、完工的排後面
+const activeProjects = () => state.projects.filter(p => !p.disabled && !p.done).concat(state.projects.filter(p => !p.disabled && p.done));
 function curP() {
   const id = localStorage.getItem(LS('dfi_pid'));
   return state.projects.find(p => p.id === id && !p.disabled) || activeProjects()[0] || null;
@@ -614,7 +619,7 @@ const vName = id => { const v = vendorOf(id); return v ? v.name : '（未指定�
 function pickProject() {
   const ps = activeProjects();
   if (!ps.length) { if (isAdmin()) go({ name: 'projects' }); return; }
-  sheet(`<h3>選擇建案</h3>${ps.map(p => `<div class="user-row" onclick="localStorage.setItem(LS('dfi_pid'),'${p.id}');closeLayer();render()"><b class="grow">${esc(p.name)}</b>${curP() && curP().id === p.id ? '✔' : ''}</div>`).join('')}
+  sheet(`<h3>選擇建案</h3>${ps.map(p => `<div class="user-row" onclick="localStorage.setItem(LS('dfi_pid'),'${p.id}');closeLayer();render()"><b class="grow">${esc(p.name)}</b>${projTag(p)}${curP() && curP().id === p.id ? '✔' : ''}</div>`).join('')}
     ${isAdmin() ? '<button class="btn ghost block" onclick="closeLayer();go({name:\'projects\'})">管理建案</button>' : ''}`);
 }
 function sheet(html) {
@@ -878,15 +883,16 @@ VIEWS.start = () => {
   const lb = localStorage.getItem(LS('dfi_lastBackup')), nd = Object.keys(state.defects).length;
   const bdays = lb ? Math.floor((Date.now() - new Date(lb)) / 864e5) : null;
   const remind = SOLO && nd && (bdays === null || bdays >= 7) ? `<div class="card" style="background:#fff4e6" onclick="go({name:'settings'})"><b>📦 ${bdays === null ? '還沒備份過' : `已經 ${bdays} 天沒備份`}</b><div class="muted">單機版資料只在這支手機，點這裡備份。</div></div>` : '';
-  return remind + `<div class="muted" style="margin:0 4px 8px">點建案進去看缺失、開單</div>` + ps.map(p => {
+  const firstDone = ps.findIndex(p => p.done);
+  return remind + `<div class="muted" style="margin:0 4px 8px">點建案進去看缺失、開單</div>` + ps.map((p, i) => {
     const ds = Object.values(state.defects).filter(d => d.pid === p.id), n = s => ds.filter(d => d.status === s).length;
     const late = ds.filter(isLate).length;
-    return `<div class="card" style="cursor:pointer;${cur && cur.id === p.id ? 'box-shadow:inset 4px 0 0 var(--steel),0 1px 3px rgba(0,0,0,.06)' : ''}" onclick="openProject('${p.id}')">
-      <div class="row"><b class="grow" style="font-size:18px">🏗 ${esc(p.name)}</b><span class="muted">›</span></div>
+    return (i === firstDone ? '<div class="muted" style="margin:16px 4px 8px">✅ 已完工的建案</div>' : '') + `<div class="card" style="cursor:pointer;${p.done ? 'opacity:.7;' : ''}${cur && cur.id === p.id ? 'box-shadow:inset 4px 0 0 var(--steel),0 1px 3px rgba(0,0,0,.06)' : ''}" onclick="openProject('${p.id}')">
+      <div class="row"><b class="grow" style="font-size:18px">${p.done ? '✅' : '🏗'} ${esc(p.name)}</b>${projTag(p)}<span class="muted">›</span></div>
       <div class="row wrap" style="margin-top:8px;gap:6px">
         <span class="tag s-wait">待改善 ${n('wait') + n('doing')}</span>${late ? `<span class="tag s-wait" style="background:#a61e1e">逾期 ${late}</span>` : ''}
         <span class="tag s-check">待複查 ${n('check')}</span><span class="tag s-done">已結案 ${n('done')}</span></div></div>`;
-  }).join('') + (isAdmin() ? `<button class="btn block" onclick="editProject(null)">＋ 新增建案</button><button class="btn ghost block" onclick="go({name:'projects'})">管理建案（改名、停用）</button>` : '');
+  }).join('') + (isAdmin() ? `<button class="btn block" onclick="editProject(null)">＋ 新增建案</button><button class="btn ghost block" onclick="go({name:'projects'})">管理建案（改名、完工、停用、刪除）</button>` : '');
 };
 function openProject(id) { localStorage.setItem(LS('dfi_pid'), id); tab('home'); }
 
@@ -1719,7 +1725,7 @@ async function doChangePass(b) {
 }
 VIEWS.projects = () => {
   hdr('建案管理', { right: ['＋ 新增', () => editProject(null)] });
-  return `<div class="card">${state.projects.map(p => `<div class="user-row" onclick="editProject('${p.id}')"><b class="grow">${esc(p.name)}</b>${p.disabled ? '<span class="tag pend">停用</span>' : ''}<span class="muted">${Object.values(state.defects).filter(d => d.pid === p.id).length} 件</span></div>`).join('') || '<div class="muted">還沒有建案</div>'}</div>
+  return `<div class="card">${state.projects.map(p => `<div class="user-row" onclick="editProject('${p.id}')"><b class="grow">${esc(p.name)}</b>${projTag(p)}<span class="muted">${Object.values(state.defects).filter(d => d.pid === p.id).length} 件</span></div>`).join('') || '<div class="muted">還沒有建案</div>'}</div>
     <button class="btn block" onclick="editProject(null)">＋ 新增建案</button>`;
 };
 // 建案的位置規劃（開單時「位置」都用點的，不用打字）
@@ -1798,7 +1804,8 @@ function editProject(id) {
     ${plChips('rooms', '每戶都有的空間')}
     ${plChips('struct', '位置：結構')}
     ${plChips('outer', '位置：室外（外牆用 正面／左面／右面／後面）')}
-    ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
+    ${p ? `<label class="f">建案狀態</label><div class="chips" id="pjst" data-st="${projSt(p)}">${Object.keys(PROJ_ST).map(k => `<button class="chip${projSt(p) === k ? ' on' : ''}" data-k="${k}" onclick="pjSt('${k}')">${PROJ_ST[k]}</button>`).join('')}</div>
+    <div class="muted" style="font-size:13px;margin-top:4px">完工：還看得到、可以開單（保固），排在首頁「已完工」下面。停用：首頁和選單都不出現，資料還在，要看再改回來。</div>` : ''}
     <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>
     ${p && isAdmin() ? `<button class="btn ghost block" style="color:#c92a2a;margin-top:16px" onclick="deleteProjectAsk('${p.id}')">🗑 刪除這個建案</button>` : ''}`);
 }
@@ -1810,7 +1817,7 @@ function deleteProjectAsk(id) {
   const n = Object.values(state.defects).filter(d => d.pid === id).length;
   sheet(`<h3>🗑 刪除建案「${esc(p.name)}」</h3>
     <div class="muted">${n ? `這個建案的 <b>${n} 筆缺失</b>和照片會一起刪掉，${SOLO ? '<b>刪了不能復原</b>（要的話先到 ⚙ 備份）' : '照片會丟到雲端硬碟垃圾桶，30 天內還能救'}。` : '這個建案沒有缺失。'}廠商會留著，只從這個建案移出。</div>
-    ${n ? '<div class="muted" style="margin-top:6px">只是完工了、資料想留著：不用刪，回上一頁勾「停用」就好。</div>' : ''}
+    ${n ? '<div class="muted" style="margin-top:6px">只是完工了、資料想留著：不用刪，回上一頁把狀態選「完工」或「停用」就好。</div>' : ''}
     <label class="f">確定要刪，請打建案名稱「${esc(p.name)}」</label><input type="text" id="dpc" autocomplete="off">
     <button class="btn block" style="background:#c92a2a" onclick="doDeleteProject('${p.id}',this)">刪除</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
 }
@@ -1826,6 +1833,10 @@ async function doDeleteProject(id, b) {
     toast(r.defects ? `建案已刪除（缺失 ${r.defects} 筆一起刪掉）` : '建案已刪除');
   } catch (e) { toast(e.message); b.disabled = false; }
 }
+function pjSt(k) {
+  const w = $('pjst'); w.dataset.st = k;
+  w.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.k === k));
+}
 async function saveProject(id, b) {
   b.disabled = true;
   const loc = { b: +$('pl_b').value || 0, n: +$('pl_n').value || 0, r: +$('pl_r').value || 0 };
@@ -1834,7 +1845,8 @@ async function saveProject(id, b) {
   ['struct', 'units', 'rooms', 'outer'].forEach(k => { loc[k] = [...new Set(LOC_OPTS[k].concat(plSel[k]))].filter(x => plSel[k].includes(x)); });
   loc.unitRooms = {};
   loc.units.forEach(u => { if (/戶$/.test(u) && plRooms[u]) loc.unitRooms[u] = plRooms[u]; });
-  const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: !!($('pjd') && $('pjd').checked), loc };
+  const st = $('pjst') ? $('pjst').dataset.st : 'on';
+  const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: st === 'off', done: st === 'done', loc };
   try {
     const r = await api('saveProject', { project: p });
     p.loc = r.loc;

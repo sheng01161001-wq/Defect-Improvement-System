@@ -231,7 +231,7 @@ function projects_() {
   return rows_('建案').map(({ row, r }) => {
     let loc = null;
     try { loc = r[4] ? JSON.parse(String(r[4]).replace(/^~/, '')) : null; } catch (e) {}
-    return { row, id: String(r[0]), name: un_(r[1]), disabled: r[2] === '是', created: String(r[3]), loc };
+    return { row, id: String(r[0]), name: un_(r[1]), disabled: r[2] === '是', done: r[2] === '完工', created: String(r[3]), loc };
   });
 }
 // 位置規劃：棟別（只有一棟就空的）、地下／地上／屋突層數、另外的樓層、各分類的位置清單
@@ -261,8 +261,9 @@ function saveProject_(q) {
     const sh = sheet_('建案'), loc = cleanLoc_(p.loc), locS = loc ? '~' + JSON.stringify(loc) : '';
     if (sh.getMaxColumns() < 5) sh.insertColumnsAfter(sh.getMaxColumns(), 5 - sh.getMaxColumns());
     if (!sh.getRange(1, 5).getValue()) sh.getRange(1, 5).setValue('位置規劃');
-    if (hit) sh.getRange(hit.row, 2, 1, 2).setValues([[txt_(name), p.disabled ? '是' : '']]);
-    else sh.appendRow([p.id, txt_(name), p.disabled ? '是' : '', now_(), '']);
+    const st = p.disabled ? '是' : p.done ? '完工' : '';   // 停用／完工／使用中
+    if (hit) sh.getRange(hit.row, 2, 1, 2).setValues([[txt_(name), st]]);
+    else sh.appendRow([p.id, txt_(name), st, now_(), '']);
     // 沒送位置規劃（舊版 App）就不動原本的
     if (p.loc !== undefined) sh.getRange(hit ? hit.row : sh.getLastRow(), 5).setValue(locS);
     return { loc };
@@ -379,7 +380,7 @@ const sigOf_ = d => Utilities.base64Encode(Utilities.computeDigest(Utilities.Dig
 
 function list_() {
   return {
-    projects: projects_().map(p => ({ id: p.id, name: p.name, disabled: p.disabled, loc: p.loc })),
+    projects: projects_().map(p => ({ id: p.id, name: p.name, disabled: p.disabled, done: p.done, loc: p.loc })),
     vendors: vendors_().map(pubVendor_),
     defects: defectRows_().map(outD_),
     customs: customs_().map(c => ({ kind: c.kind, key: c.key, text: c.text, byUser: c.byUser })),

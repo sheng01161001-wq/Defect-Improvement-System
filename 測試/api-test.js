@@ -276,6 +276,19 @@ LR = okCall({ action: 'list', token: TA }, '讀（帳號還在）');
 ok(!LR.defects.length && !LR.projects.length && !LR.vendors.length && !LR.customs.length, '建案、廠商、常用語都清掉');
 okCall({ action: 'saveProject', token: TA, project: { id: 'proj09', name: '正式案' } }, '清完可以建新建案');
 
+// 建案狀態：使用中／完工／停用
+okCall({ action: 'saveProject', token: TA, project: { id: 'projst', name: '狀態測試案', done: true } }, '建案設完工');
+let LS1 = okCall({ action: 'list', token: TA }, '讀');
+let PS = LS1.projects.find(p => p.id === 'projst');
+ok(PS.done === true && PS.disabled === false, '完工：done＝true、沒停用');
+okCall({ action: 'saveProject', token: TA, project: { id: 'projst', name: '狀態測試案', disabled: true } }, '建案改停用');
+PS = okCall({ action: 'list', token: TA }, '讀').projects.find(p => p.id === 'projst');
+ok(PS.disabled === true && PS.done === false, '停用：disabled＝true、不是完工');
+okCall({ action: 'saveProject', token: TA, project: { id: 'projst', name: '狀態測試案' } }, '建案改回使用中');
+PS = okCall({ action: 'list', token: TA }, '讀').projects.find(p => p.id === 'projst');
+ok(!PS.disabled && !PS.done, '使用中');
+okCall({ action: 'deleteProject', token: TA, id: 'projst', confirm: '狀態測試案' }, '刪掉狀態測試案');
+
 // 刪除建案
 okCall({ action: 'saveProject', token: TA, project: { id: 'projdel', name: '要刪的案' } }, '建要刪的建案');
 okCall({ action: 'saveProject', token: TA, project: { id: 'projkeep', name: '留著的案' } }, '建留著的建案');
