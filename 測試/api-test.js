@@ -290,8 +290,10 @@ badCall({ action: 'trialSync', key: 'z'.repeat(30), codes: [] }, '別的鑰匙�
 okCall({ action: 'trialSync', key: 'k'.repeat(30), codes: [{ code: 'own123', name: '自己', owner: true, active: true }, { code: 'abc999', name: '小王', active: true }] }, '同步試用碼清單');
 badCall({ action: 'trialList', owner: 'ABC999' }, '朋友的碼不能看管理頁');
 badCall({ action: 'trialList', owner: 'NOPE00' }, '亂打的碼不能看');
+okCall({ action: 'trialSync', key: 'k'.repeat(30), codes: [{ code: 'old111', name: '自己（舊）', owner: true, active: false }, { code: 'own123', name: '自己', owner: true, active: true }, { code: 'abc999', name: '小王', active: true }] }, '換自己的碼');
+badCall({ action: 'trialList', owner: 'old111' }, '停用的自己碼不能看');
 const TO = okCall({ action: 'trialList', owner: 'own123' }, '自己的碼看管理頁');
-ok(TO.codes.length === 2 && TO.codes[1].name === '小王' && TO.rows.length === 2, '看得到號碼和紀錄');
+ok(TO.codes.length === 3 && TO.codes[2].name === '小王' && TO.rows.length === 2, '看得到號碼和紀錄');
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

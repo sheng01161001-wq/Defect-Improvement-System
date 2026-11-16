@@ -395,7 +395,7 @@ const trialCodes_ = () => JSON.parse(props_().getProperty('TRIAL_CODES') || '[]'
 // 讀紀錄：電腦的試用管理用鑰匙；手機單機版用「自己用」的那組試用碼（owner）
 function trialList_(q) {
   const own = String(q.owner || '').trim().toUpperCase();
-  const okOwner = own && trialCodes_().some(c => c.owner && c.code === own);
+  const okOwner = own && trialCodes_().some(c => c.owner && c.active && c.code === own);
   if (!okOwner && !trialKeyOk_(q.key)) throw new Error(q.owner ? '這組碼不是管理用的' : '鑰匙不對');
   const sh = trialSheet_(), last = sh.getLastRow();
   const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 5).getValues().map(r => ({ at: timeStr_(r[0]), h: String(r[1]), name: un_(r[2]), dev: String(r[3]), ua: un_(r[4]) }));
