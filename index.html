@@ -9,6 +9,16 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>
+// 單機版是另一個 App（網址加 ?app=solo）：桌面名稱、圖示不一樣
+if (new URLSearchParams(location.search).get('app') === 'solo') {
+  document.title = '缺失改善單機版';
+  document.querySelector('meta[name=apple-mobile-web-app-title]').content = '缺失改善單機版';
+  document.querySelector('link[rel=manifest]').href = 'manifest-solo.webmanifest';
+  document.querySelector('link[rel=icon]').href = 'icon-solo-192.png';
+  document.querySelector('link[rel=apple-touch-icon]').href = 'apple-touch-icon-solo.png';
+}
+</script>
 <style>
 :root{
   --bg:#f6f3ef; --card:#fff; --ink:#2d2a26; --muted:#6f665d; --line:#eadfd5; --steel:#d9480f; --dark:#3a3632;
@@ -144,7 +154,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v28';
+const VERSION = 'v29';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -187,30 +197,55 @@ function dueText(d, bare) {
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const QS = new URLSearchParams(location.search);
 if (QS.get('api') && LOCAL) localStorage.setItem('dfi_api', QS.get('api'));
-// 使用方式：solo＝單機（資料只在這支手機）、cloud＝登入公司系統；第一次打開時選
-if (!localStorage.getItem('dfi_mode') && localStorage.getItem('dfi_auth')) localStorage.setItem('dfi_mode', 'cloud');   // 舊使用者
-const MODE = localStorage.getItem('dfi_mode') || '';
-const SOLO = MODE === 'solo';
-const API = SOLO ? 'solo' : (LOCAL && localStorage.getItem('dfi_api')) || API_DEFAULT;
-function setMode(m) {
-  if (m === MODE) return;
-  if (!SOLO && auth && pendingCount() && !confirm(`還有 ${pendingCount()} 筆資料沒上傳到公司系統，切換會丟掉。確定切換？`)) return;
-  localStorage.setItem('dfi_mode', m); localStorage.removeItem('dfi_auth'); localStorage.removeItem('dfi_draft'); localStorage.removeItem('dfi_last'); localStorage.removeItem('dfi_pid');
-  location.reload();
+// 兩個 App：公司版（網址不加參數，要帳號）、單機版（?app=solo，資料只在這支手機）。
+// 兩個在同一個網域，手機裡的資料分開放：localStorage 單機版前面加 solo_、IndexedDB 用不同的資料庫
+const SOLO = QS.get('app') === 'solo';
+const LS = k => (SOLO ? 'solo_' : '') + k;
+// v28 以前在同一個網址選「單機」的人：公司版網址自動轉到單機版，單機版把設定搬過去
+if (localStorage.getItem('dfi_mode') === 'solo') {
+  if (!SOLO) { location.replace('./?app=solo'); throw new Error('轉到單機版'); }
+  ['dfi_auth', 'dfi_draft', 'dfi_last', 'dfi_pid', 'dfi_lastBackup'].forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v !== null && localStorage.getItem(LS(k)) === null) localStorage.setItem(LS(k), v);
+    localStorage.removeItem(k);
+  });
 }
+localStorage.removeItem('dfi_mode');
+const API = SOLO ? 'solo' : (LOCAL && localStorage.getItem('dfi_api')) || API_DEFAULT;
 const VCODE = QS.get('v');   // 廠商回報連結
 const BASE = location.origin + location.pathname.replace(/index\.html$/, '');
 
 // ── 本機暫存（IndexedDB）─────────
 let dbP = null;
-function db() {
-  if (!dbP) dbP = new Promise((res, rej) => {
-    const r = indexedDB.open('defect-improvement', 1);
+function openDB(name) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(name, 1);
     r.onupgradeneeded = () => { r.result.createObjectStore('photos'); r.result.createObjectStore('kv'); };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
   });
+}
+function db() {
+  if (!dbP) dbP = openDB('defect-improvement' + (SOLO ? '-solo' : '')).then(d => (SOLO ? soloMove(d).then(() => d, () => d) : d));
   return dbP;
+}
+// v28 以前單機版的資料跟公司版放在同一個資料庫：第一次開單機版 App 時搬過來（照片只搬單機版用到的）
+async function soloMove(nd) {
+  const tx = (d, st, mode, fn) => new Promise((res, rej) => { const t = d.transaction(st, mode), out = fn(t); t.oncomplete = () => res(out && 'result' in out ? out.result : undefined); t.onerror = () => rej(t.error); });
+  if (await tx(nd, 'kv', 'readonly', t => t.objectStore('kv').get('solo-db'))) return;
+  const od = await openDB('defect-improvement');
+  try {
+    const keys = ['solo-db', 'cache:solo', 'outbox:solo'], vals = {};
+    for (const k of keys) vals[k] = await tx(od, 'kv', 'readonly', t => t.objectStore('kv').get(k));
+    if (!vals['solo-db']) return;
+    const text = JSON.stringify(vals) + (localStorage.getItem(LS('dfi_draft')) || '');
+    const pids = (await tx(od, 'photos', 'readonly', t => t.objectStore('photos').getAllKeys())).filter(id => text.includes(id));
+    for (const id of pids) { const v = await tx(od, 'photos', 'readonly', t => t.objectStore('photos').get(id)); await tx(nd, 'photos', 'readwrite', t => { t.objectStore('photos').put(v, id); }); }
+    await tx(nd, 'kv', 'readwrite', t => keys.forEach(k => vals[k] !== undefined && t.objectStore('kv').put(vals[k], k)));
+    // 搬好了才從舊的拿掉
+    await tx(od, 'kv', 'readwrite', t => keys.forEach(k => t.objectStore('kv').delete(k)));
+    await tx(od, 'photos', 'readwrite', t => pids.forEach(id => t.objectStore('photos').delete(id)));
+  } finally { od.close(); }
 }
 async function idbPut(store, key, val) {
   const d = await db();
@@ -369,7 +404,7 @@ function photoDelete(key, i) { const P = photoLists[key]; P.get().splice(i, 1); 
 
 // ── 帳號與雲端 ─────────────────────────────
 let auth = null;
-try { auth = JSON.parse(localStorage.getItem('dfi_auth') || 'null'); } catch (e) {}
+try { auth = JSON.parse(localStorage.getItem(LS('dfi_auth')) || 'null'); } catch (e) {}
 if (auth && auth.api !== API) auth = null;
 const isAdmin = () => !!(auth && auth.me.role === 'admin');
 const ROLE_NAME = { admin: '後台', staff: '工地人員' };
@@ -405,10 +440,10 @@ async function api(action, data) {
 }
 // 舊版存的資料少了新欄位
 function fixLoaded() { if (!state.customs) state.customs = []; if (!outbox.cu) outbox.cu = []; }
-function setAuth(r) { auth = { api: API, token: r.token, me: r.me }; localStorage.setItem('dfi_auth', JSON.stringify(auth)); }
+function setAuth(r) { auth = { api: API, token: r.token, me: r.me }; localStorage.setItem(LS('dfi_auth'), JSON.stringify(auth)); }
 async function logout(expired) {
   if (!expired && pendingCount() && !confirm(`還有 ${pendingCount()} 筆資料沒上傳，登出會丟掉。確定登出？`)) return;
-  auth = null; localStorage.removeItem('dfi_auth');
+  auth = null; localStorage.removeItem(LS('dfi_auth'));
   // 登入過期：還沒上傳的資料留在手機，重新登入後繼續上傳；自己按登出才清掉
   if (!expired) { state = emptyState(); outbox = emptyBox(); }
   await persistNow();
@@ -535,7 +570,7 @@ async function cleanPhotos() {
   Object.values(state.defects).forEach(d => {
     if (OPEN(d.status) && (needNotice(d) || String(d.created || '').slice(0, 10) >= since)) (d.photos || []).forEach(id => keep.add(id));
   });
-  try { (JSON.parse(localStorage.getItem('dfi_draft') || 'null') || { photos: [] }).photos.forEach(id => keep.add(id)); } catch (e) {}
+  try { (JSON.parse(localStorage.getItem(LS('dfi_draft')) || 'null') || { photos: [] }).photos.forEach(id => keep.add(id)); } catch (e) {}
   if (draft) (draft.photos || []).forEach(id => keep.add(id));
   if (rv) (rv.photos || []).forEach(id => keep.add(id));
   for (const id of await idbKeys('photos')) if (!keep.has(id)) { delete photoCache[id]; await idbDel('photos', id); }
@@ -578,7 +613,7 @@ window.addEventListener('online', () => { if (auth) syncNow(); });
 // ── 目前建案 ─────────────────────────────
 const activeProjects = () => state.projects.filter(p => !p.disabled);
 function curP() {
-  const id = localStorage.getItem('dfi_pid');
+  const id = localStorage.getItem(LS('dfi_pid'));
   return state.projects.find(p => p.id === id && !p.disabled) || activeProjects()[0] || null;
 }
 const projDefects = () => { const p = curP(); return p ? Object.values(state.defects).filter(d => d.pid === p.id) : []; };
@@ -587,7 +622,7 @@ const vName = id => { const v = vendorOf(id); return v ? v.name : '（未指定�
 function pickProject() {
   const ps = activeProjects();
   if (!ps.length) { if (isAdmin()) go({ name: 'projects' }); return; }
-  sheet(`<h3>選擇建案</h3>${ps.map(p => `<div class="user-row" onclick="localStorage.setItem('dfi_pid','${p.id}');closeLayer();render()"><b class="grow">${esc(p.name)}</b>${curP() && curP().id === p.id ? '✔' : ''}</div>`).join('')}
+  sheet(`<h3>選擇建案</h3>${ps.map(p => `<div class="user-row" onclick="localStorage.setItem(LS('dfi_pid'),'${p.id}');closeLayer();render()"><b class="grow">${esc(p.name)}</b>${curP() && curP().id === p.id ? '✔' : ''}</div>`).join('')}
     ${isAdmin() ? '<button class="btn ghost block" onclick="closeLayer();go({name:\'projects\'})">管理建案</button>' : ''}`);
 }
 function sheet(html) {
@@ -675,15 +710,10 @@ const VIEWS = {}, AFTER = {};
 let hasUsers = null;
 VIEWS.login = () => {
   hdr('缺失改善系統');
-  if (!MODE) return `<div class="card login"><h3>選擇使用方式</h3>
-    <button class="btn block" style="padding:16px;margin-top:10px" onclick="setMode('solo')">📱 單機使用<div style="font-size:13px;font-weight:normal;margin-top:4px">資料只存在這支手機，不用帳號、不用網路</div></button>
-    <button class="btn ghost block" style="padding:16px" onclick="setMode('cloud')">☁️ 登入公司系統<div style="font-size:13px;font-weight:normal;margin-top:4px">大家共用資料，要有帳號密碼</div></button>
-    <div class="muted" style="margin-top:8px">之後可以在 ⚙ 設定 裡切換。</div><div class="ver">${VERSION}</div></div>`;
   if (SOLO) return `<div class="card login"><h3>📱 單機使用</h3>
     <p class="muted">資料只存在這支手機。請填你的名字（會印在 PDF 的「開單人」）。</p>
     <label class="f">你的名字</label><input type="text" id="ln" maxlength="20">
     <button class="btn block" id="lb" onclick="soloStart()">開始使用</button>
-    <button class="btn ghost block" onclick="setMode('cloud')">改用公司系統（要帳號）</button>
     <div class="ver">${VERSION}</div></div>`;
   if (!API) return `<div class="card login"><h3>還沒設定後端</h3><p class="muted">請聯絡管理者。</p></div>`;
   if (hasUsers === null) {
@@ -734,7 +764,7 @@ VIEWS.start = () => {
     ? `<p class="muted">先新增一個建案，才能開始記缺失。</p><button class="btn block" onclick="editProject(null)">＋ 新增建案</button>`
     : '<p class="muted">請後台人員先新增建案。</p><button class="btn ghost block" onclick="pull()">重新整理</button>'}</div>`;
   const cur = curP();
-  const lb = localStorage.getItem('dfi_lastBackup'), nd = Object.keys(state.defects).length;
+  const lb = localStorage.getItem(LS('dfi_lastBackup')), nd = Object.keys(state.defects).length;
   const bdays = lb ? Math.floor((Date.now() - new Date(lb)) / 864e5) : null;
   const remind = SOLO && nd && (bdays === null || bdays >= 7) ? `<div class="card" style="background:#fff4e6" onclick="go({name:'settings'})"><b>📦 ${bdays === null ? '還沒備份過' : `已經 ${bdays} 天沒備份`}</b><div class="muted">單機版資料只在這支手機，點這裡備份。</div></div>` : '';
   return remind + `<div class="muted" style="margin:0 4px 8px">點建案進去看缺失、開單</div>` + ps.map(p => {
@@ -747,7 +777,7 @@ VIEWS.start = () => {
         <span class="tag s-check">待複查 ${n('check')}</span><span class="tag s-done">已結案 ${n('done')}</span></div></div>`;
   }).join('') + (isAdmin() ? `<button class="btn block" onclick="editProject(null)">＋ 新增建案</button><button class="btn ghost block" onclick="go({name:'projects'})">管理建案（改名、停用）</button>` : '');
 };
-function openProject(id) { localStorage.setItem('dfi_pid', id); tab('home'); }
+function openProject(id) { localStorage.setItem(LS('dfi_pid'), id); tab('home'); }
 
 // ── 總覽 ─────────────────────────────
 VIEWS.home = () => {
@@ -806,16 +836,16 @@ function startDraft(id) {
   draftDirty = false;
   if (id) { draft = clone(state.defects[id]); draft._orig = clone(draft.photos); return; }
   // 新單：先看有沒有沒存完的（相機開啟時手機可能會重新載入網頁）
-  try { const s = JSON.parse(localStorage.getItem('dfi_draft') || 'null'); if (s && curP() && s.pid === curP().id) { draft = s; return; } } catch (e) {}
-  let last = JSON.parse(localStorage.getItem('dfi_last') || '{}');
+  try { const s = JSON.parse(localStorage.getItem(LS('dfi_draft')) || 'null'); if (s && curP() && s.pid === curP().id) { draft = s; return; } } catch (e) {}
+  let last = JSON.parse(localStorage.getItem(LS('dfi_last')) || '{}');
   if (curP() && last.pid && last.pid !== curP().id) last = { cat: last.cat };   // 別的建案的棟、樓層不要帶過來
   draft = { id: uid(), pid: curP() ? curP().id : '', cat: last.cat || '結構體', trade: '', vid: '', bldg: last.bldg || '', floor: last.floor || '', spot: '',
     note: '', req: '', photos: [], due: addDays(7), dueN: 7, status: 'wait', reviews: [], _orig: [] };
 }
-function keepDraft() { draftDirty = true; if (!view.id) { draft._t = Date.now(); localStorage.setItem('dfi_draft', JSON.stringify(draft)); } }
+function keepDraft() { draftDirty = true; if (!view.id) { draft._t = Date.now(); localStorage.setItem(LS('dfi_draft'), JSON.stringify(draft)); } }
 // 剛剛（30 分鐘內）開單到一半（iPhone 拍照時 App 可能被關掉重開）才直接回到新增畫面；放久了就從首頁開始
 function resumeDraft() {
-  let s = null; try { s = JSON.parse(localStorage.getItem('dfi_draft') || 'null'); } catch (e) {}
+  let s = null; try { s = JSON.parse(localStorage.getItem(LS('dfi_draft')) || 'null'); } catch (e) {}
   if (!s || !(Date.now() - (s._t || 0) < 30 * 60e3)) return;
   stack.push({ name: 'home' }); view = { name: 'edit' }; startDraft(null);
 }
@@ -844,7 +874,7 @@ function phrasesOf(t) {
 }
 VIEWS.edit = () => {
   const p = curP();
-  hdr(view.id ? '修改缺失 ' + noText(draft) : '新增缺失', { right: view.id ? null : ['清空', () => { if (confirm('清空重填？')) { localStorage.removeItem('dfi_draft'); startDraft(null); render(); } }] });
+  hdr(view.id ? '修改缺失 ' + noText(draft) : '新增缺失', { right: view.id ? null : ['清空', () => { if (confirm('清空重填？')) { localStorage.removeItem(LS('dfi_draft')); startDraft(null); render(); } }] });
   if (!p) return `<div class="card">請先在總覽新增／選擇建案。</div>`;
   if (!draft) startDraft(view.id || null);
   const d = draft;
@@ -1054,8 +1084,8 @@ async function saveDraft(withLine) {
   });
   outs.forEach(o => saveD(o, newPh));
   if (isNew) {
-    localStorage.removeItem('dfi_draft');
-    localStorage.setItem('dfi_last', JSON.stringify({ pid: d.pid, cat: d.cat, bldg: d.bldg, floor: d.floor }));
+    localStorage.removeItem(LS('dfi_draft'));
+    localStorage.setItem(LS('dfi_last'), JSON.stringify({ pid: d.pid, cat: d.cat, bldg: d.bldg, floor: d.floor }));
   }
   draftDirty = false; draft = null;
   // 存好就回到原本的畫面（新增：回總覽或剛剛的清單；修改：回缺失頁）
@@ -1520,17 +1550,15 @@ VIEWS.settings = () => {
       <button class="btn block" onclick="soloBackup()">📦 備份（存成一個檔案）</button>
       <button class="btn ghost block" onclick="$('rsf').click()">♻️ 從備份檔還原</button>
       <input type="file" id="rsf" accept=".json,application/json" style="display:none" onchange="soloRestore(this.files[0]);this.value=''">
-      <div class="muted">上次備份：${localStorage.getItem('dfi_lastBackup') ? esc(localStorage.getItem('dfi_lastBackup').slice(0, 16).replace('T', ' ')) : '還沒備份過'}</div></div>
+      <div class="muted">上次備份：${localStorage.getItem(LS('dfi_lastBackup')) ? esc(localStorage.getItem(LS('dfi_lastBackup')).slice(0, 16).replace('T', ' ')) : '還沒備份過'}</div></div>
     <div class="card"><h3>管理</h3>
       <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
       <button class="btn ghost block" style="color:#c92a2a" onclick="resetData()">🧹 資料歸零</button></div>
-    <div class="card"><h3>使用方式</h3><div class="muted">切到公司系統後，這支手機的單機資料還在，切回來就看得到。</div>
-      <button class="btn ghost block" onclick="if(confirm('改用公司系統（要帳號密碼）？'))setMode('cloud')">☁️ 改用公司系統</button></div>
     <div class="ver">小棒槌 缺失改善系統 ${VERSION}（單機）</div>`;
   return `<div class="card"><h3>${esc(auth.me.name)}</h3><div class="muted">帳號 ${esc(auth.me.user)}・${ROLE_NAME[auth.me.role]}</div>
       <button class="btn ghost block" onclick="changePass()">改密碼</button>
       <button class="btn ghost block" onclick="logout()">登出</button>
-      <button class="btn ghost block" onclick="if(confirm('改成單機使用？（公司系統的資料不會帶過去）'))setMode('solo')">📱 改用單機版</button></div>
+</div>
     ${isAdmin() ? `<div class="card"><h3>後台管理</h3>
       <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
       <button class="btn ghost block" onclick="go({name:'users'})">👤 帳號管理</button>
@@ -1622,7 +1650,7 @@ async function saveProject(id, b) {
     const r = await api('saveProject', { project: p });
     p.loc = r.loc;
     const i = state.projects.findIndex(x => x.id === p.id);
-    if (i >= 0) state.projects[i] = p; else { state.projects.push(p); localStorage.setItem('dfi_pid', p.id); }
+    if (i >= 0) state.projects[i] = p; else { state.projects.push(p); localStorage.setItem(LS('dfi_pid'), p.id); }
     persistNow(); closeLayer(); render(); toast('已儲存');
   } catch (e) { toast(e.message); b.disabled = false; }
 }
@@ -1652,7 +1680,7 @@ async function soloBackup() {
       <button class="btn ghost block" onclick="closeLayer()">關閉</button>`);
   } catch (e) { toast(e.message); }
 }
-function markBackup() { localStorage.setItem('dfi_lastBackup', new Date().toISOString()); }
+function markBackup() { localStorage.setItem(LS('dfi_lastBackup'), new Date().toISOString()); }
 async function shareBackup() {
   try { await navigator.share({ files: [lastExport.file], title: lastExport.name }); markBackup(); toast('已備份'); closeLayer(); render(); }
   catch (e) { if (e.name !== 'AbortError') toast('不能分享，請按「下載備份檔」'); }
@@ -1665,7 +1693,7 @@ async function soloRestore(f) {
     await soloReady();
     await SoloBackend.restore(o);
     await idbDel('kv', CK); await idbDel('kv', OK);
-    localStorage.removeItem('dfi_draft');
+    localStorage.removeItem(LS('dfi_draft'));
     toast('已還原'); setTimeout(() => location.reload(), 600);
   } catch (e) { toast(e.message.includes('JSON') ? '這不是缺失改善系統的備份檔' : e.message); }
 }
@@ -1676,7 +1704,7 @@ async function doReset(b) {
   try {
     const r = await api('resetData', { mode, confirm: c });
     outbox = emptyBox(); state = emptyState();
-    localStorage.removeItem('dfi_draft'); localStorage.removeItem('dfi_last');
+    localStorage.removeItem(LS('dfi_draft')); localStorage.removeItem(LS('dfi_last'));
     await persistNow(); await pull(true);
     closeLayer(); stack.length = 0; view = { name: 'start' }; render();
     toast(`已清除 ${r.defects} 筆缺失、${r.photos} 張照片`);
