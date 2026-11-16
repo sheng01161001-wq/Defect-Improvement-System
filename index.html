@@ -148,7 +148,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v33';
+const VERSION = 'v34';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -1031,14 +1031,31 @@ VIEWS.edit = () => {
 };
 // 位置：依建案的位置規劃用點的（棟只有一棟就不顯示）。
 // 位置存成「戶別 位置1 位置2…」，例如「A戶 浴室 牆」；位置可以點好幾個，戶別只選一個
-const placesOf = l => [...new Set([].concat(l.struct || [], l.rooms || [], l.outer || []))];
+// 每戶格局 → 房間名稱：3房＝主臥、次臥1、次臥2；2衛＝主浴、客浴；2陽台＝前陽台、後陽台
+const GEN_ROOMS = ['主臥', '次臥', '浴室', '主浴', '客浴', '陽台'];
+function unitRoomNames(c) {
+  const a = [], r = c.r || 0, b = c.b || 0, p = c.p || 0;
+  if (r >= 1) a.push('主臥');
+  if (r === 2) a.push('次臥'); else for (let i = 2; i <= r; i++) a.push('次臥' + (i - 1));
+  if (b === 1) a.push('浴室'); else if (b >= 2) { a.push('主浴', '客浴'); for (let i = 3; i <= b; i++) a.push('浴室' + i); }
+  if (p === 1) a.push('陽台'); else if (p === 2) a.push('前陽台', '後陽台'); else for (let i = 1; i <= p; i++) a.push('陽台' + i);
+  return a;
+}
+// 選的戶別有設格局：每戶都有的空間＋這戶的房間；公設（梯廳…）不列空間；沒選戶別：列每戶都有的空間
+function roomsFor(l, u) {
+  const c = u && l.unitRooms && l.unitRooms[u];
+  if (c) return [...new Set((l.rooms || []).filter(x => !GEN_ROOMS.includes(x)).concat(unitRoomNames(c)))];
+  if (u && !/戶$/.test(u)) return [];
+  return l.rooms || [];
+}
+const placesOf = (l, u) => [...new Set([].concat(l.struct || [], roomsFor(l, u), l.outer || []))];
 function spotParts(d, l) {
   const t = String(d.spot || '').split(' ').filter(Boolean), units = l.units || [];
   const u = t.find(x => units.includes(x)) || '';
   return { u, ps: t.filter(x => x !== u) };
 }
 function setSpot(u, ps) {
-  const l = curP().loc, all = [].concat(l.rooms || [], l.outer || [], l.struct || []), i = x => (all.indexOf(x) + 1 || 999);   // 寫成「A戶 浴室 牆」：空間在前、構件在後
+  const l = curP().loc, all = [].concat(roomsFor(l, u), l.outer || [], l.struct || []), i = x => (all.indexOf(x) + 1 || 999);   // 寫成「A戶 浴室 牆」：空間在前、構件在後
   draft.spot = [u].concat(ps.slice().sort((a, b) => i(a) - i(b))).filter(Boolean).join(' ');
   keepDraft(); render();
 }
@@ -1048,19 +1065,23 @@ function locChips(list, on, fn) {
 function locPickHTML(d, l) {
   const fl = floorsOf(l), floors = d.floor && !fl.includes(d.floor) ? fl.concat([d.floor]) : fl, sp = spotParts(d, l);
   const bl = l.bldgs || [], showB = bl.length > 1 || (d.bldg && !bl.includes(d.bldg));
-  const extra = sp.ps.filter(x => !placesOf(l).includes(x));   // 舊資料不在清單裡也要看得到
+  const extra = sp.ps.filter(x => !placesOf(l, sp.u).includes(x));   // 舊資料、換了戶別不在清單裡的也要看得到
   const row = (label, list) => (list || []).length ? `<div class="muted" style="margin-top:4px">${label}</div>${locChips(list, sp.ps, 'pickPlace')}` : '';
   const units = (l.units || []).concat(sp.u && !(l.units || []).includes(sp.u) ? [sp.u] : []);
   return `${showB ? `<label class="f">棟別</label>${locChips(bl, [d.bldg], 'pickBldg')}` : ''}
     <label class="f">樓層</label>
     <select onchange="draft.floor=this.value;keepDraft()"><option value="">— 選樓層 —</option>${floors.map(f => `<option ${d.floor === f ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
+    ${units.length ? `<label class="f">戶別／公設（可不選）</label>${locChips(units, [sp.u], 'pickUnit')}` : ''}
     <label class="f">位置（可以點好幾個）</label>
-    ${row('結構', l.struct)}${row('空間', l.rooms)}${row('室外', l.outer)}${extra.length ? locChips(extra, extra, 'pickPlace') : ''}
-    ${!placesOf(l).length && !extra.length ? '<div class="muted">建案的位置規劃裡還沒有位置，請後台到建案管理加</div>' : ''}
-    ${units.length ? `<label class="f">戶別／公設（可不選）</label>${locChips(units, [sp.u], 'pickUnit')}` : ''}`;
+    ${row('結構', l.struct)}${row(sp.u && l.unitRooms && l.unitRooms[sp.u] ? `空間（${esc(sp.u)}）` : '空間', roomsFor(l, sp.u))}${row('室外', l.outer)}${extra.length ? locChips(extra, extra, 'pickPlace') : ''}
+    ${!placesOf(l, sp.u).length && !extra.length ? '<div class="muted">建案的位置規劃裡還沒有位置，請後台到建案管理加</div>' : ''}`;
 }
 function pickBldg(x) { draft.bldg = draft.bldg === x ? '' : x; keepDraft(); render(); }
-function pickUnit(x) { const sp = spotParts(draft, curP().loc); setSpot(sp.u === x ? '' : x, sp.ps); }
+// 換戶別：上一戶的房間拿掉（結構、室外留著）
+function pickUnit(x) {
+  const l = curP().loc, sp = spotParts(draft, l), u = sp.u === x ? '' : x, now = placesOf(l, u), before = placesOf(l, sp.u);
+  setSpot(u, sp.ps.filter(p => now.includes(p) || !before.includes(p)));
+}
 function pickPlace(x) {
   const sp = spotParts(draft, curP().loc);
   setSpot(sp.u, sp.ps.includes(x) ? sp.ps.filter(y => y !== x) : sp.ps.concat([x]));
@@ -1702,16 +1723,31 @@ VIEWS.projects = () => {
 const LOC_DEF = { b: 1, n: 5, r: 1, bldgs: [], floorsX: [],
   struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '電梯井', '女兒牆'],
   units: ['A戶', 'B戶', '梯廳', '走道', '樓梯間'],
-  rooms: ['客廳', '餐廳', '廚房', '主臥', '次臥', '浴室', '陽台', '玄關'],
-  outer: ['東向外牆', '西向外牆', '南向外牆', '北向外牆', '屋頂', '中庭', '車道', '大門', '圍牆'] };
+  rooms: ['客廳', '餐廳', '廚房', '玄關'],
+  unitRooms: { 'A戶': { r: 3, b: 2, p: 1 }, 'B戶': { r: 3, b: 2, p: 1 } },
+  outer: ['正面外牆', '左面外牆', '右面外牆', '後面外牆', '屋頂', '中庭', '車道', '大門', '圍牆'] };
 // 建案位置規劃可以點的選項（點了才會出現在開單畫面；不夠可以「＋ 自己加」）
 const LOC_OPTS = {
   struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '筏基', '電梯井', '女兒牆', '陽台', '雨遮', '屋突', '地下室外牆', '車道'],
   units: ['A戶', 'B戶', 'C戶', 'D戶', 'E戶', 'F戶', 'G戶', 'H戶', '梯廳', '走道', '樓梯間', '電梯廳', '管委會', '交誼廳', '健身房', '垃圾間', '停車場'],
-  rooms: ['客廳', '餐廳', '廚房', '主臥', '次臥', '書房', '和室', '浴室', '主浴', '客浴', '陽台', '工作陽台', '玄關', '走道', '儲藏室', '更衣室'],
-  outer: ['東向外牆', '西向外牆', '南向外牆', '北向外牆', '屋頂', '中庭', '車道', '大門', '圍牆', '景觀', '排水溝', '人行道', '機房', '水塔']
+  rooms: ['客廳', '餐廳', '廚房', '玄關', '走道', '書房', '和室', '工作陽台', '儲藏室', '更衣室'],
+  outer: ['正面外牆', '左面外牆', '右面外牆', '後面外牆', '屋頂', '中庭', '車道', '大門', '圍牆', '景觀', '排水溝', '人行道', '機房', '水塔']
 };
-let plSel = null;
+let plSel = null, plRooms = null;
+// 每戶格局（戶別名稱最後是「戶」的才要設；公設不用）
+function plUnitsHTML() {
+  const us = plSel.units.filter(u => /戶$/.test(u));
+  if (!us.length) return '<div class="muted">上面選了戶別（A戶、B戶…）這裡就會出現</div>';
+  const sel = (u, k, max, unit) => `<select style="width:auto;padding:4px 6px;font-size:15px" onchange="plRooms[${jsq(u)}].${k}=+this.value">${Array.from({ length: max + 1 }, (_, i) => `<option ${plRooms[u][k] === i ? 'selected' : ''}>${i}</option>`).join('')}</select>${unit}`;
+  us.forEach(u => { if (!plRooms[u]) plRooms[u] = { r: 3, b: 2, p: 1 }; });
+  return us.map(u => `<div class="row" style="align-items:center;gap:4px;margin:4px 0;flex-wrap:wrap"><b style="min-width:52px">${esc(u)}</b>${sel(u, 'r', 6, '房')}${sel(u, 'b', 4, '衛浴')}${sel(u, 'p', 4, '陽台')}</div>`).join('')
+    + (us.length > 1 ? `<button class="chip add" style="margin-top:4px" onclick="plSameAll()">全部照 ${esc(us[0])} 一樣</button>` : '');
+}
+function plSameAll() {
+  const us = plSel.units.filter(u => /戶$/.test(u)), c = plRooms[us[0]];
+  us.forEach(u => { plRooms[u] = Object.assign({}, c); });
+  $('plu').innerHTML = plUnitsHTML();
+}
 const plChip = (k, x) => `<button class="chip ${plSel[k].includes(x) ? 'on' : ''}" onclick="plTog('${k}',${jsq(x)},this)">${esc(x)}</button>`;
 function plChips(k, label) {
   const opts = [...new Set(LOC_OPTS[k].concat(plSel[k]))];
@@ -1721,6 +1757,7 @@ function plTog(k, x, b) {
   const a = plSel[k], i = a.indexOf(x);
   if (i < 0) a.push(x); else a.splice(i, 1);
   b.classList.toggle('on', i < 0);
+  if (k === 'units') $('plu').innerHTML = plUnitsHTML();
 }
 function plAdd(k) {
   const x = (prompt('要加的項目（一次一個）') || '').trim().replace(/[、,，;；\s]+/g, '').slice(0, 12);
@@ -1728,6 +1765,7 @@ function plAdd(k) {
   if (!plSel[k].includes(x)) plSel[k].push(x);
   const box = $('plc_' + k), had = [...box.children].find(b => b.textContent === x);
   if (had) had.classList.add('on'); else box.lastElementChild.insertAdjacentHTML('beforebegin', plChip(k, x));
+  if (k === 'units') $('plu').innerHTML = plUnitsHTML();
 }
 const splitList = s => [...new Set(String(s || '').split(/[、,，;；\s]+/).map(x => x.trim()).filter(Boolean))];
 function floorsOf(l) {
@@ -1740,6 +1778,7 @@ function floorsOf(l) {
 function editProject(id) {
   const p = id ? state.projects.find(x => x.id === id) : null, l = (p && p.loc) || LOC_DEF;
   plSel = { struct: (l.struct || []).slice(), units: (l.units || []).slice(), rooms: (l.rooms || []).slice(), outer: (l.outer || []).slice() };
+  plRooms = JSON.parse(JSON.stringify(l.unitRooms || {}));
   const txt = (k, label, hint) => `<label class="f">${label}</label><textarea id="pl_${k}" rows="2" style="min-height:0" placeholder="${esc(hint)}">${esc((l[k] || []).join('、'))}</textarea>`;
   const num = (k, label) => `<label style="flex:1;font-size:14px;min-width:0">${label}<input type="number" inputmode="numeric" id="pl_${k}" min="0" max="80" value="${l[k] || 0}" style="display:block;width:100%;margin-top:2px"></label>`;
   sheet(`<h3>${p ? '修改建案' : '新增建案'}</h3><label class="f">建案名稱</label><input type="text" id="pjn" value="${esc(p ? p.name : '')}">
@@ -1749,10 +1788,13 @@ function editProject(id) {
     ${txt('bldgs', '棟別（只有一棟就空白，開單時不會出現；多棟用「、」分開）', '例如：A、B、C')}
     <label class="f">樓層</label><div class="row">${num('b', '地下幾層')}${num('n', '地上幾層')}${num('r', '屋突幾層')}</div>
     ${txt('floorsX', '另外的樓層（可不填）', '例如：夾層、機房層')}
-    ${plChips('struct', '位置：結構')}
-    ${plChips('rooms', '位置：空間')}
-    ${plChips('outer', '位置：室外')}
     ${plChips('units', '戶別／公設')}
+    <label class="f">每戶格局（幾房、幾衛浴、幾個陽台）</label>
+    <div class="muted" style="font-size:13px">開單選了這一戶，空間就只出現這戶有的房間（3房＝主臥、次臥1、次臥2；2衛＝主浴、客浴；2陽台＝前陽台、後陽台）。</div>
+    <div id="plu">${plUnitsHTML()}</div>
+    ${plChips('rooms', '每戶都有的空間')}
+    ${plChips('struct', '位置：結構')}
+    ${plChips('outer', '位置：室外（外牆用 正面／左面／右面／後面）')}
     ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
     <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
 }
@@ -1762,6 +1804,8 @@ async function saveProject(id, b) {
   ['bldgs', 'floorsX'].forEach(k => { loc[k] = splitList($('pl_' + k).value); });
   // 點選的項目照選項清單的順序存（開單畫面排起來比較整齊）
   ['struct', 'units', 'rooms', 'outer'].forEach(k => { loc[k] = [...new Set(LOC_OPTS[k].concat(plSel[k]))].filter(x => plSel[k].includes(x)); });
+  loc.unitRooms = {};
+  loc.units.forEach(u => { if (/戶$/.test(u) && plRooms[u]) loc.unitRooms[u] = plRooms[u]; });
   const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: !!($('pjd') && $('pjd').checked), loc };
   try {
     const r = await api('saveProject', { project: p });

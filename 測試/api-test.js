@@ -236,6 +236,8 @@ const TA = S3.token, TB = okCall({ action: 'login', user: 'site2', pass: 'test-p
 // 建案位置規劃
 const PL = okCall({ action: 'saveProject', token: TA, project: { id: 'proj01', name: '冀晨', loc: { b: 2, n: 14, r: 2, bldgs: ['A', 'B', 'A', ''], floorsX: ['夾層'], struct: ['柱', '樑'], units: ['A1', 'A2'], rooms: ['客廳'], outer: ['東向外牆'] } } }, '設定位置規劃');
 ok(PL.loc.bldgs.join() === 'A,B' && PL.loc.n === 14, '位置規劃去重、去空白');
+const PU = okCall({ action: 'saveProject', token: TA, project: { id: 'projur', name: '格局案', loc: { n: 3, units: ['A戶', 'B戶'], unitRooms: { 'A戶': { r: 3, b: 2, p: 1 }, 'B戶': { r: '2', b: 1, p: 99 }, 'Z戶': { r: 1 } } } } }, '每戶格局');
+ok(PU.loc.unitRooms['A戶'].r === 3 && PU.loc.unitRooms['B戶'].r === 2 && PU.loc.unitRooms['B戶'].p === 9 && !PU.loc.unitRooms['Z戶'], '格局數字整理、不在戶別清單的不留');
 let LP = okCall({ action: 'list', token: TB }, '讀').projects.find(p => p.id === 'proj01');
 ok(LP.loc && LP.loc.struct.join() === '柱,樑' && LP.loc.units.join() === 'A1,A2', '讀得到位置規劃');
 okCall({ action: 'saveProject', token: TA, project: { id: 'proj01', name: '冀晨2' } }, '舊版 App 只改名');

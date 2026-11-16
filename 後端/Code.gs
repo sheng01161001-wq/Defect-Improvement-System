@@ -244,6 +244,10 @@ function cleanLoc_(l) {
     const seen = {};
     out[k] = (Array.isArray(l[k]) ? l[k] : []).map(s => str_(s, 20)).filter(s => s && !seen[s] && (seen[s] = 1)).slice(0, 60);
   });
+  // 每戶格局：{ 'A戶': { r: 房, b: 衛浴, p: 陽台 } }（只留戶別清單裡有的）
+  out.unitRooms = {};
+  const ur = l.unitRooms && typeof l.unitRooms === 'object' ? l.unitRooms : {};
+  out.units.forEach(u => { const c = ur[u]; if (c && typeof c === 'object') out.unitRooms[u] = { r: num(c.r, 9), b: num(c.b, 9), p: num(c.p, 9) }; });
   return out;
 }
 function saveProject_(q) {
