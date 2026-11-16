@@ -148,7 +148,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v36';
+const VERSION = 'v37';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -680,7 +680,7 @@ function render(soft) {
   $('backBtn').style.display = canBack() && view.name !== 'notice' ? '' : 'none';
   $('app').innerHTML = fn();
   if (trialState() === 'expired' && ['start', 'home'].includes(view.name))
-    $('app').insertAdjacentHTML('afterbegin', `<div class="card" style="background:#fff5f5;border:2px solid #ffa8a8"><b>⛔ ${trialEndText()}</b><div class="muted">還可以看資料、傳 PDF、備份（⚙ 設定 → 📦 備份），不能再開新的缺失。</div></div>`);
+    $('app').insertAdjacentHTML('afterbegin', `<div class="card" style="background:#fff5f5;border:2px solid #ffa8a8"><b>⛔ ${trialEndText()}</b><div class="muted">還可以看資料、傳 PDF、備份（⚙ 設定 → 📦 備份），不能再開新的缺失。</div><button class="btn ghost block" style="margin-top:8px" onclick="go({name:'trial'})">🔑 輸入新的試用碼</button></div>`);
   setNav(); setSyncUI();
   if (soft) scrollTo(0, y);
   hydratePhotos($('app'));
@@ -833,7 +833,7 @@ async function trialEnter() {
 }
 VIEWS.trial = () => {
   hdr('缺失改善單機版');
-  return `<div class="card login"><h3>🔑 請輸入試用碼</h3>
+  return `<div class="card login"><h3>🔑 ${localStorage.getItem(LS('dfi_trial')) ? '換試用碼' : '請輸入試用碼'}</h3>
     <p class="muted">單機版目前是試用，請輸入提供給你的試用碼（第一次要連網路）。</p>
     <p class="muted" style="font-size:13px">輸入時會記錄你的名字和手機種類，讓提供的人知道誰在試用；開的缺失、照片只在你的手機，不會傳出去。</p>
     <label class="f">試用碼</label><input type="text" id="tc" maxlength="20" autocapitalize="characters" autocomplete="off">
@@ -1692,6 +1692,8 @@ VIEWS.settings = () => {
       <div class="muted">上次備份：${localStorage.getItem(LS('dfi_lastBackup')) ? esc(localStorage.getItem(LS('dfi_lastBackup')).slice(0, 16).replace('T', ' ')) : '還沒備份過'}</div></div>
     ${isTrialOwner() ? `<div class="card"><h3>🔑 試用碼管理</h3><div class="muted">看朋友的試用碼、誰在用、有沒有被轉傳（只有你的碼看得到）</div>
       <button class="btn ghost block" onclick="trialData=null;go({name:'trials'})">打開</button></div>` : ''}
+    <div class="card"><h3>🔑 試用碼</h3><div class="muted">${trialState() === 'ok' ? (isTrialOwner() ? '自己用的碼（不會到期）' : '試用中' + (trialCfg && trialCfg.until ? '，到 ' + esc(trialCfg.until.replace(/-/g, '/')) : '')) : trialEndText()}</div>
+      <button class="btn ghost block" onclick="go({name:'trial'})">換試用碼</button></div>
     <div class="card"><h3>管理</h3>
       <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
       <button class="btn ghost block" style="color:#c92a2a" onclick="resetData()">🧹 資料歸零</button></div>
