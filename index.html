@@ -148,7 +148,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v37';
+const VERSION = 'v38';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -1688,7 +1688,7 @@ VIEWS.settings = () => {
       <div class="muted">資料只存在這支手機。手機壞掉、換手機、刪掉 App 資料就沒了，<b>請常備份</b>。</div>
       <button class="btn block" onclick="soloBackup()">📦 備份（存成一個檔案）</button>
       <button class="btn ghost block" onclick="$('rsf').click()">♻️ 從備份檔還原</button>
-      <input type="file" id="rsf" style="display:none" onchange="soloRestore(this.files[0]);this.value=''">
+      <input type="file" id="rsf" accept="application/json,.json,text/plain,.txt" style="display:none" onchange="soloRestore(this.files[0]);this.value=''">
       <div class="muted">上次備份：${localStorage.getItem(LS('dfi_lastBackup')) ? esc(localStorage.getItem(LS('dfi_lastBackup')).slice(0, 16).replace('T', ' ')) : '還沒備份過'}</div></div>
     ${isTrialOwner() ? `<div class="card"><h3>🔑 試用碼管理</h3><div class="muted">看朋友的試用碼、誰在用、有沒有被轉傳（只有你的碼看得到）</div>
       <button class="btn ghost block" onclick="trialData=null;go({name:'trials'})">打開</button></div>` : ''}
