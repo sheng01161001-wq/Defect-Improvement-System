@@ -14,6 +14,10 @@ const io = {
   photo: async id => photos[id], putPhoto: async (id, d) => { photos[id] = d; },
   delPhoto: async id => { delete photos[id]; }, clearPhotos: async () => { const n = Object.keys(photos).length; for (const k in photos) delete photos[k]; return n; },
 };
+// solo.html 要跟 index.html 同步（改 index.html 後要跑 node 測試\make-solo.js）
+const built = require('./make-solo.js').build(fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8'));
+ok(fs.existsSync(path.join(__dirname, '..', 'solo.html')) && fs.readFileSync(path.join(__dirname, '..', 'solo.html'), 'utf8') === built, 'solo.html 跟 index.html 同步（沒有就跑 node 測試\make-solo.js）');
+ok(built.includes('manifest-solo.webmanifest') && built.includes('dfi-app') && !built.includes('id="toSolo"'), 'solo.html 用單機版的名稱、圖示');
 (async () => {
   await S.init(io);
   ok(!(await S.call({ action: 'soloAuth', name: '' })).ok, '沒填名字');

@@ -9,15 +9,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<script>
-// 單機版是另一個 App（網址加 ?app=solo）：桌面名稱、圖示不一樣
-if (new URLSearchParams(location.search).get('app') === 'solo') {
-  document.title = '缺失改善單機版';
-  document.querySelector('meta[name=apple-mobile-web-app-title]').content = '缺失改善單機版';
-  document.querySelector('link[rel=manifest]').href = 'manifest-solo.webmanifest';
-  document.querySelector('link[rel=icon]').href = 'icon-solo-192.png';
-  document.querySelector('link[rel=apple-touch-icon]').href = 'apple-touch-icon-solo.png';
-}
+<script id="toSolo">
+// 單機版是另一個網頁檔 solo.html（測試\make-solo.js 自動產生）；舊的單機版網址 ?app=solo 轉過去
+if (new URLSearchParams(location.search).get('app') === 'solo') location.replace('solo.html');
 </script>
 <style>
 :root{
@@ -154,7 +148,7 @@ textarea{min-height:70px;resize:vertical}
 <script src="pdf.js"></script>
 <script>
 'use strict';
-const VERSION = 'v31';
+const VERSION = 'v32';
 // 後端網址（Google Apps Script 網頁應用程式）
 const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
 
@@ -197,13 +191,13 @@ function dueText(d, bare) {
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const QS = new URLSearchParams(location.search);
 if (QS.get('api') && LOCAL) localStorage.setItem('dfi_api', QS.get('api'));
-// 兩個 App：公司版（網址不加參數，要帳號）、單機版（?app=solo，資料只在這支手機）。
+// 兩個 App：公司版（index.html，要帳號）、單機版（solo.html，資料只在這支手機；從 index.html 自動產生，<head> 有 dfi-app 記號）。
 // 兩個在同一個網域，手機裡的資料分開放：localStorage 單機版前面加 solo_、IndexedDB 用不同的資料庫
-const SOLO = QS.get('app') === 'solo';
+const SOLO = !!document.querySelector('meta[name=dfi-app][content=solo]');
 const LS = k => (SOLO ? 'solo_' : '') + k;
 // v28 以前在同一個網址選「單機」的人：公司版網址自動轉到單機版，單機版把設定搬過去
 if (localStorage.getItem('dfi_mode') === 'solo') {
-  if (!SOLO) { location.replace('./?app=solo'); throw new Error('轉到單機版'); }
+  if (!SOLO) { location.replace('solo.html'); throw new Error('轉到單機版'); }
   ['dfi_auth', 'dfi_draft', 'dfi_last', 'dfi_pid', 'dfi_lastBackup'].forEach(k => {
     const v = localStorage.getItem(k);
     if (v !== null && localStorage.getItem(LS(k)) === null) localStorage.setItem(LS(k), v);
@@ -213,7 +207,7 @@ if (localStorage.getItem('dfi_mode') === 'solo') {
 localStorage.removeItem('dfi_mode');
 const API = SOLO ? 'solo' : (LOCAL && localStorage.getItem('dfi_api')) || API_DEFAULT;
 const VCODE = QS.get('v');   // 廠商回報連結
-const BASE = location.origin + location.pathname.replace(/index\.html$/, '');
+const BASE = location.origin + location.pathname.replace(/(index|solo)\.html$/, '');
 
 // ── 本機暫存（IndexedDB）─────────
 let dbP = null;

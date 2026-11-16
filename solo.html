@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>缺失改善單機版</title>
+<meta name="apple-mobile-web-app-title" content="缺失改善單機版">
+<meta name="theme-color" content="#d9480f">
+<link rel="manifest" href="manifest-solo.webmanifest">
+<link rel="icon" href="icon-solo-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon-solo.png">
+<meta name="dfi-app" content="solo">
+<!-- 這個檔是從 index.html 自動產生的（測試\make-solo.js），不要直接改 -->
+<style>
+:root{
+  --bg:#f6f3ef; --card:#fff; --ink:#2d2a26; --muted:#6f665d; --line:#eadfd5; --steel:#d9480f; --dark:#3a3632;
+  --wait:#d64545; --doing:#e08a1e; --check:#2b7bd6; --done:#2f9e5b;
+  --c1:#6b4fa0; --c2:#2b7bd6; --c3:#2f9e5b; --line-green:#06c755;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;font-size:16px;line-height:1.5;padding-bottom:84px}
+header{position:sticky;top:0;z-index:10;background:var(--steel);color:#fff;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;gap:8px}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+header h1.pick{cursor:pointer}
+header .logo{height:36px;width:auto;flex:none;margin:-4px 0}
+header button{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:15px;font-family:inherit}
+#sync{font-size:12px;opacity:.9;white-space:nowrap;cursor:pointer}
+main{max-width:760px;margin:0 auto;padding:12px}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--dark);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;padding:6px 0 8px;font-size:12px;color:#cfc8c0;font-family:inherit;position:relative}
+nav button b{display:block;font-size:21px;line-height:1.3}
+nav button.on{color:#ffa94d;font-weight:bold}
+nav i{position:absolute;top:2px;left:55%;background:var(--wait);color:#fff;font-style:normal;font-size:11px;border-radius:9px;padding:0 5px;min-width:18px}
+.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card h3{margin:0 0 8px;font-size:16px;color:var(--dark)}
+.muted{color:var(--muted);font-size:14px}
+.btn{display:inline-block;border:0;border-radius:10px;padding:10px 16px;font-size:16px;background:var(--steel);color:#fff;cursor:pointer;font-family:inherit;text-align:center}
+.btn.line{background:var(--line-green)}
+.btn.ok{background:var(--done)}
+.btn.ng{background:var(--wait)}
+.btn.ghost{background:#fff;color:var(--steel);border:1px solid var(--line)}
+.btn.small{padding:6px 10px;font-size:14px}
+.btn.block{display:block;width:100%;margin-top:8px}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center}
+.wrap{flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+label.f{display:block;margin:12px 0 4px;font-size:14px;color:var(--dark);font-weight:bold}
+input[type=text],input[type=date],input[type=tel],input[type=password],input[type=search],textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+textarea{min-height:70px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 12px;font-size:14px;font-family:inherit;color:var(--ink);cursor:pointer}
+.chip.on{background:var(--steel);border-color:var(--steel);color:#fff}
+.chip.add{border-style:dashed;color:var(--muted)}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;color:#fff;margin-right:4px;white-space:nowrap;vertical-align:middle}
+.s-wait{background:var(--wait)}.s-doing{background:var(--doing)}.s-check{background:var(--check)}.s-done{background:var(--done)}
+.c-結構體{background:var(--c1)}.c-室內裝修{background:var(--c2)}.c-室外裝修{background:var(--c3)}
+.tag.pend{background:#868e96}
+.dash{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.dash button{border-radius:12px;padding:10px 4px 8px;font-family:inherit;cursor:pointer;font-size:14px;font-weight:bold}
+.dash b{display:block;font-size:34px;line-height:1.15}
+.dash .d-wait{background:#fff3bf;border:2px solid #fcc419;color:#7a5b00}
+.dash .d-late{background:#ffe3e3;border:2px solid #ff8787;color:#a61e1e}
+.dash .d-done{background:#d3f9d8;border:2px solid #69db7c;color:#1f6b33}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stats button{border:0;border-radius:10px;color:#fff;padding:10px 2px;font-family:inherit;cursor:pointer}
+.stats b{display:block;font-size:26px;line-height:1.2}
+.stats span{font-size:13px}
+.item{display:flex;gap:10px;align-items:flex-start;cursor:pointer;background:#fff;border-radius:12px;padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.item.late{box-shadow:inset 4px 0 0 var(--wait),0 1px 3px rgba(0,0,0,.06)}
+.thumb{width:66px;height:66px;border-radius:8px;background:#dfe5ec;flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#8a96a3;font-size:24px}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.it-t{font-weight:bold;font-size:15px}
+.it-m{font-size:13px;color:var(--muted);margin-top:2px}
+.red{color:var(--wait);font-weight:bold}
+.bar{display:flex;align-items:center;gap:8px;font-size:14px;padding:6px 0;cursor:pointer}
+.bar .n{width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .b{flex:1;height:10px;background:#eef1f5;border-radius:5px;overflow:hidden}
+.bar .b i{display:block;height:100%}
+.bar .c{width:70px;text-align:right;color:var(--muted);font-size:13px}
+.photos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.ph{position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;background:#dfe5ec;cursor:pointer}
+.ph img{width:100%;height:100%;object-fit:cover}
+.ph .x{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:0;border-radius:50%;width:24px;height:24px;font-size:13px;line-height:24px;padding:0}
+.addph{width:80px;height:80px;border:2px dashed #b7c0cc;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:13px;color:var(--muted);cursor:pointer;background:#fff}
+.addph b{font-size:22px;line-height:1.1}
+.addph input{display:none}
+.kv{width:100%;border-collapse:collapse;font-size:15px}
+.kv th{width:84px;text-align:left;color:var(--muted);font-weight:normal;padding:5px 0;vertical-align:top}
+.kv td{padding:5px 0}
+.log{font-size:13px;line-height:1.8;color:#3b4652}
+.log span{color:var(--muted);margin-right:6px}
+.sub{border-left:4px solid var(--line);padding:6px 10px;margin:8px 0;background:#f7f9fb;border-radius:0 8px 8px 0;font-size:14px}
+.sub.fix{border-left-color:var(--check)}.sub.ok{border-left-color:var(--done)}.sub.ng{border-left-color:var(--wait)}
+.empty{text-align:center;color:var(--muted);padding:30px 10px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.modal .sheet{background:#fff;width:100%;max-width:760px;border-radius:16px 16px 0 0;padding:16px;max-height:88vh;overflow:auto;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+.viewer{position:fixed;inset:0;background:#000;z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.viewer img{max-width:100%;max-height:calc(100% - 70px)}
+.viewer .vb{position:absolute;bottom:16px;display:flex;gap:10px}
+.draw{position:fixed;inset:0;background:#111;z-index:65;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.draw canvas{touch-action:none;max-width:100%;max-height:calc(100% - 80px);background:#000}
+.draw .vb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:center}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#222;color:#fff;padding:8px 16px;border-radius:20px;z-index:70;font-size:14px;max-width:90%;text-align:center}
+.ver{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
+.login{max-width:380px;margin:30px auto}
+.user-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.user-row:last-child{border-bottom:0}
+.hl{animation:hl 2s}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px #f59f00}}
+/* 通知單 */
+.notice{background:#fff;padding:24px 22px;margin-bottom:16px;font-size:14px;color:#000}
+.notice h2{text-align:center;margin:0 0 4px;letter-spacing:6px;font-size:22px}
+.notice .no{text-align:center;color:#333;margin-bottom:12px}
+.notice table{width:100%;border-collapse:collapse}
+.notice td,.notice th{border:1px solid #333;padding:6px 8px;vertical-align:top;text-align:left}
+.notice th{background:#eef1f5;width:86px;white-space:nowrap}
+.notice .pics{display:flex;flex-wrap:wrap;gap:6px}
+.notice .pics img{width:180px;height:135px;object-fit:cover;border:1px solid #999}
+.notice .sign th{text-align:center;width:25%}
+.notice .sign td{height:60px}
+.notice .foot{font-size:12px;color:#333;margin-top:8px;line-height:1.6}
+@media print{
+  header,nav,.noprint{display:none!important}
+  body{background:#fff;padding:0}
+  main{max-width:none;padding:0}
+  .notice{padding:0;margin:0;page-break-after:always}
+  .notice:last-child{page-break-after:auto}
+  .notice th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<header>
+  <button id="backBtn" onclick="goBack()" style="display:none">‹ 返回</button>
+  <img class="logo" src="logo.png" alt="">
+  <h1 id="title">缺失改善系統</h1>
+  <span id="sync" onclick="syncNow()"></span>
+  <button id="hdrRight" style="display:none"></button>
+</header>
+<main id="app"></main>
+<nav id="nav" style="display:none"></nav>
+<div id="layer"></div>
+
+<script src="data.js"></script>
+<script src="pdf.js"></script>
+<script>
+'use strict';
+const VERSION = 'v32';
+// 後端網址（Google Apps Script 網頁應用程式）
+const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbw6hJC78rNUJjAZUvaN8ylKUuTXpjKQ4LGHtv83mAXuLJWLil1WrXy1ZIkUci63kqAAIA/exec';
+
+// ── 小工具 ─────────────────────────────
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// 放進 onclick="…" 裡的字串參數（含引號的工項名稱也不會壞掉）
+const jsq = s => esc(JSON.stringify(String(s)));
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const today = () => ymd(new Date());
+const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); };
+const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00:00')) / 864e5);
+const md = s => s ? Number(s.slice(5, 7)) + '/' + Number(s.slice(8, 10)) : '';
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+let toastT;
+function toast(m) {
+  clearTimeout(toastT);
+  let el = document.querySelector('.toast');
+  if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
+  el.textContent = m;
+  toastT = setTimeout(() => el.remove(), 3000);
+}
+
+const ST = { wait: '待改善', doing: '改善中', check: '待複查', done: '已結案' };
+const OPEN = s => s !== 'done';
+const isLate = d => (d.status === 'wait' || d.status === 'doing') && d.due < today();
+const locText = d => [d.bldg, d.floor, d.spot].filter(Boolean).join(' ');
+const noText = d => d.no ? '#' + String(d.no).padStart(4, '0') : '（未上傳）';
+const stTag = d => `<span class="tag s-${d.status}">${ST[d.status]}</span>`;
+function dueText(d, bare) {
+  const L = bare ? '' : '期限 ';
+  if (!OPEN(d.status)) return L + md(d.due);
+  const n = daysBetween(today(), d.due);
+  if (isLate(d)) return `<span class="red">${L}${md(d.due)}，已逾 ${-n} 天</span>`;
+  return L + md(d.due) + (d.status === 'check' ? '' : n === 0 ? '（今天）' : `（剩 ${n} 天）`);
+}
+
+// 本機測試可用 ?api=網址 改連模擬後端
+const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const QS = new URLSearchParams(location.search);
+if (QS.get('api') && LOCAL) localStorage.setItem('dfi_api', QS.get('api'));
+// 兩個 App：公司版（index.html，要帳號）、單機版（solo.html，資料只在這支手機；從 index.html 自動產生，<head> 有 dfi-app 記號）。
+// 兩個在同一個網域，手機裡的資料分開放：localStorage 單機版前面加 solo_、IndexedDB 用不同的資料庫
+const SOLO = !!document.querySelector('meta[name=dfi-app][content=solo]');
+const LS = k => (SOLO ? 'solo_' : '') + k;
+// v28 以前在同一個網址選「單機」的人：公司版網址自動轉到單機版，單機版把設定搬過去
+if (localStorage.getItem('dfi_mode') === 'solo') {
+  if (!SOLO) { location.replace('solo.html'); throw new Error('轉到單機版'); }
+  ['dfi_auth', 'dfi_draft', 'dfi_last', 'dfi_pid', 'dfi_lastBackup'].forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v !== null && localStorage.getItem(LS(k)) === null) localStorage.setItem(LS(k), v);
+    localStorage.removeItem(k);
+  });
+}
+localStorage.removeItem('dfi_mode');
+const API = SOLO ? 'solo' : (LOCAL && localStorage.getItem('dfi_api')) || API_DEFAULT;
+const VCODE = QS.get('v');   // 廠商回報連結
+const BASE = location.origin + location.pathname.replace(/(index|solo)\.html$/, '');
+
+// ── 本機暫存（IndexedDB）─────────
+let dbP = null;
+function openDB(name) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(name, 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('photos'); r.result.createObjectStore('kv'); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function db() {
+  if (!dbP) dbP = openDB('defect-improvement' + (SOLO ? '-solo' : '')).then(d => (SOLO ? soloMove(d).then(() => d, () => d) : d));
+  return dbP;
+}
+// v28 以前單機版的資料跟公司版放在同一個資料庫：第一次開單機版 App 時搬過來（照片只搬單機版用到的）
+async function soloMove(nd) {
+  const tx = (d, st, mode, fn) => new Promise((res, rej) => { const t = d.transaction(st, mode), out = fn(t); t.oncomplete = () => res(out && 'result' in out ? out.result : undefined); t.onerror = () => rej(t.error); });
+  if (await tx(nd, 'kv', 'readonly', t => t.objectStore('kv').get('solo-db'))) return;
+  const od = await openDB('defect-improvement');
+  try {
+    const keys = ['solo-db', 'cache:solo', 'outbox:solo'], vals = {};
+    for (const k of keys) vals[k] = await tx(od, 'kv', 'readonly', t => t.objectStore('kv').get(k));
+    if (!vals['solo-db']) return;
+    const text = JSON.stringify(vals) + (localStorage.getItem(LS('dfi_draft')) || '');
+    const pids = (await tx(od, 'photos', 'readonly', t => t.objectStore('photos').getAllKeys())).filter(id => text.includes(id));
+    for (const id of pids) { const v = await tx(od, 'photos', 'readonly', t => t.objectStore('photos').get(id)); await tx(nd, 'photos', 'readwrite', t => { t.objectStore('photos').put(v, id); }); }
+    await tx(nd, 'kv', 'readwrite', t => keys.forEach(k => vals[k] !== undefined && t.objectStore('kv').put(vals[k], k)));
+    // 搬好了才從舊的拿掉
+    await tx(od, 'kv', 'readwrite', t => keys.forEach(k => t.objectStore('kv').delete(k)));
+    await tx(od, 'photos', 'readwrite', t => pids.forEach(id => t.objectStore('photos').delete(id)));
+  } finally { od.close(); }
+}
+async function idbPut(store, key, val) {
+  const d = await db();
+  return new Promise((res, rej) => { const t = d.transaction(store, 'readwrite'); t.objectStore(store).put(val, key); t.oncomplete = res; t.onerror = () => rej(t.error); });
+}
+async function idbDel(store, key) {
+  const d = await db();
+  return new Promise((res, rej) => { const t = d.transaction(store, 'readwrite'); t.objectStore(store).delete(key); t.oncomplete = res; t.onerror = () => rej(t.error); });
+}
+async function idbClear(store) {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction(store, 'readwrite'), os = t.objectStore(store), c = os.count();
+    let n = 0; c.onsuccess = () => { n = c.result; os.clear(); };
+    t.oncomplete = () => res(n); t.onerror = () => rej(t.error);
+  });
+}
+async function idbKeys(store) {
+  const d = await db();
+  return new Promise(res => { const r = d.transaction(store).objectStore(store).getAllKeys(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+}
+async function idbGet(store, key) {
+  const d = await db();
+  return new Promise(res => { const r = d.transaction(store).objectStore(store).get(key); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+}
+
+// ── 照片 ─────────────────────────────
+const photoCache = {}, fetchingPh = new Set();
+async function photoGet(id) {
+  if (!photoCache[id]) photoCache[id] = await idbGet('photos', id);
+  return photoCache[id];
+}
+async function photoPut(id, data) { photoCache[id] = data; await idbPut('photos', id, data); }
+const imgTag = id => `<img data-pid="${esc(id)}" alt="">`;
+const phView = id => `<div class="ph" onclick="viewPhoto('${esc(id)}')">${imgTag(id)}</div>`;
+// 畫面上的 <img data-pid> 補上照片：先找手機暫存，沒有再跟後端拿
+async function hydratePhotos(root) {
+  const need = [];
+  for (const img of (root || document).querySelectorAll('img[data-pid]')) {
+    const id = img.dataset.pid, data = await photoGet(id);
+    if (data) img.src = data;
+    else if (!fetchingPh.has(id) && !need.includes(id)) need.push(id);
+  }
+  if (!need.length || !auth) return;
+  need.forEach(id => fetchingPh.add(id));
+  for (let i = 0; i < need.length; i += 8) {
+    try {
+      const ids = need.slice(i, i + 8);
+      const r = await api('getPhotos', { ids });
+      for (const [id, data] of Object.entries(r.photos)) {
+        await photoPut(id, data);
+        document.querySelectorAll(`img[data-pid="${id}"]`).forEach(im => { im.src = data; });
+      }
+    } catch (e) { break; }
+  }
+  need.forEach(id => fetchingPh.delete(id));
+}
+// 壓縮照片：長邊 1280px、JPEG 品質 0.7
+function compress(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', 0.7));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('讀不到照片')); };
+    im.src = url;
+  });
+}
+// 加照片的按鈕（拍照／相簿）。onAdd(id) 每張照片存好後呼叫
+function photoAdders(key) {
+  return `<label class="addph"><b>📷</b>拍照<input type="file" accept="image/*" capture="environment" onchange="addPhotos(this,'${key}')"></label>
+    <label class="addph"><b>🖼</b>相簿<input type="file" accept="image/*" multiple onchange="addPhotos(this,'${key}')"></label>`;
+}
+const photoTargets = {};
+async function addPhotos(input, key) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  for (const f of files) {
+    try {
+      const data = await compress(f), id = uid();
+      await photoPut(id, data);
+      photoTargets[key](id);
+    } catch (e) { toast(e.message); }
+  }
+}
+function viewPhoto(id, onDraw) {
+  const L = $('layer');
+  L.innerHTML = `<div class="viewer" onclick="if(event.target===this||event.target.tagName==='IMG')closeLayer()">${imgTag(id)}
+    <div class="vb">${onDraw ? '<button class="btn line" id="drawBtn">✏️ 畫圈標示</button>' : ''}<button class="btn ghost" onclick="savePhoto('${esc(id)}')">⬇ 存到手機</button><button class="btn ghost" onclick="closeLayer()">關閉</button></div></div>`;
+  hydratePhotos(L); armHistory();
+  if (onDraw) $('drawBtn').onclick = () => annotate(id, onDraw);
+}
+function closeLayer() { $('layer').innerHTML = ''; armHistory(); }
+// 需要的時候才把照片存到手機（手機能分享就用分享，iPhone 選「儲存影像」；不能就下載）
+async function savePhoto(id) {
+  const data = await photoGet(id);
+  if (!data) { toast('照片還沒載入，等一下再按'); return; }
+  const blob = await (await fetch(data)).blob(), name = '缺失照片_' + ymd(new Date()).replace(/-/g, '') + '_' + id.slice(-5) + '.jpg';
+  const file = new File([blob], name, { type: 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); } catch (e) { if (e.name !== 'AbortError') toast(e.message); }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+// 在照片上畫圈：畫好存成一張新照片
+async function annotate(id, done) {
+  const data = await photoGet(id);
+  if (!data) { toast('照片還沒載入'); return; }
+  const im = new Image();
+  im.onload = () => {
+    const L = $('layer');
+    L.innerHTML = `<div class="draw"><canvas id="cv"></canvas><div class="vb">
+      <button class="btn ghost small" id="dUndo">↶ 復原</button><button class="btn ghost small" id="dCancel">取消</button>
+      <button class="btn ok small" id="dOk">完成</button></div><div class="muted" style="color:#ccc;margin-top:6px">用手指在照片上圈出缺失位置</div></div>`;
+    const cv = $('cv'), ctx = cv.getContext('2d');
+    cv.width = im.width; cv.height = im.height;
+    const strokes = [];
+    let cur = null;
+    const redraw = () => {
+      ctx.drawImage(im, 0, 0);
+      ctx.strokeStyle = '#ff2020'; ctx.lineWidth = Math.max(4, im.width / 160); ctx.lineCap = ctx.lineJoin = 'round';
+      strokes.forEach(s => { ctx.beginPath(); s.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke(); });
+    };
+    const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.onpointerdown = e => { cv.setPointerCapture(e.pointerId); cur = [pt(e)]; strokes.push(cur); redraw(); };
+    cv.onpointermove = e => { if (cur) { cur.push(pt(e)); redraw(); } };
+    cv.onpointerup = cv.onpointercancel = () => { cur = null; };
+    $('dUndo').onclick = () => { strokes.pop(); redraw(); };
+    $('dCancel').onclick = closeLayer;
+    $('dOk').onclick = async () => {
+      if (!strokes.length) { closeLayer(); return; }
+      const nid = uid();
+      await photoPut(nid, cv.toDataURL('image/jpeg', 0.75));
+      closeLayer(); done(nid);
+    };
+    redraw();
+  };
+  im.src = data;
+}
+// 照片列：可刪、可點開、可畫圈
+function photoRow(ids, key, editable) {
+  return ids.map((id, i) => `<div class="ph" onclick="photoClick('${key}',${i})">${imgTag(id)}${editable ? `<button class="x" onclick="event.stopPropagation();photoDelete('${key}',${i})">✕</button>` : ''}</div>`).join('');
+}
+const photoLists = {};   // key → { get: () => 陣列, editable, changed }
+function photoClick(key, i) {
+  const P = photoLists[key], ids = P.get();
+  viewPhoto(ids[i], P.editable ? nid => { ids[i] = nid; P.changed(); } : null);
+}
+function photoDelete(key, i) { const P = photoLists[key]; P.get().splice(i, 1); P.changed(); }
+
+// ── 帳號與雲端 ─────────────────────────────
+let auth = null;
+try { auth = JSON.parse(localStorage.getItem(LS('dfi_auth')) || 'null'); } catch (e) {}
+if (auth && auth.api !== API) auth = null;
+const isAdmin = () => !!(auth && auth.me.role === 'admin');
+const ROLE_NAME = { admin: '後台', staff: '工地人員' };
+class ServerError extends Error {}
+let soloP = null;
+function soloReady() {
+  if (!soloP) soloP = new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = 'solo.js'; sc.onload = res; sc.onerror = () => rej(new Error('單機版程式讀不到，請連一次網路再開')); document.head.appendChild(sc);
+  }).then(() => SoloBackend.init({
+    get: k => idbGet('kv', k), put: (k, v) => idbPut('kv', k, v),
+    photo: id => photoGet(id), putPhoto: (id, d) => photoPut(id, d),
+    delPhoto: id => { delete photoCache[id]; return idbDel('photos', id); },
+    clearPhotos: () => { Object.keys(photoCache).forEach(k => delete photoCache[k]); return idbClear('photos'); },
+  })).catch(e => { soloP = null; throw e; });
+  return soloP;
+}
+async function api(action, data) {
+  if (SOLO) {
+    await soloReady();
+    const j = await SoloBackend.call(Object.assign({ action }, data || {}));
+    if (!j.ok && !j.conflict && !j.gone) throw new ServerError(j.err || '發生錯誤');
+    return j;
+  }
+  if (!API) throw new ServerError('還沒設定後端網址');
+  let res;
+  try { res = await fetch(API, { method: 'POST', body: JSON.stringify(Object.assign({ action, token: auth && auth.token }, data || {})) }); }
+  catch (e) { throw new Error('連不上網路'); }
+  let j;
+  try { j = await res.json(); } catch (e) { throw new Error('伺服器忙碌，稍後再試'); }
+  if (j.auth) { if (!VCODE) logout(true); throw new ServerError(j.err || '請重新登入'); }
+  if (!j.ok && !j.conflict && !j.gone) throw new ServerError(j.err || '發生錯誤');
+  return j;
+}
+// 舊版存的資料少了新欄位
+function fixLoaded() { if (!state.customs) state.customs = []; if (!outbox.cu) outbox.cu = []; }
+function setAuth(r) { auth = { api: API, token: r.token, me: r.me }; localStorage.setItem(LS('dfi_auth'), JSON.stringify(auth)); }
+async function logout(expired) {
+  if (!expired && pendingCount() && !confirm(`還有 ${pendingCount()} 筆資料沒上傳，登出會丟掉。確定登出？`)) return;
+  auth = null; localStorage.removeItem(LS('dfi_auth'));
+  // 登入過期：還沒上傳的資料留在手機，重新登入後繼續上傳；自己按登出才清掉
+  if (!expired) { state = emptyState(); outbox = emptyBox(); }
+  await persistNow();
+  stack.length = 0; view = { name: 'login' }; closeLayer(); render();
+  if (expired) toast('登入已過期，請重新登入');
+}
+
+// ── 資料（雲端副本＋還沒上傳的修改）─────────
+const emptyState = () => ({ projects: [], vendors: [], defects: {}, customs: [] });
+// cu：共用工項／常用語的新增、拿掉（照順序上傳）
+const emptyBox = () => ({ ph: [], d: {}, del: [], cu: [] });
+let state = emptyState(), outbox = emptyBox(), seq = 0;
+const CK = 'cache:' + API, OK = 'outbox:' + API;
+let saveTimer, saving = Promise.resolve();
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(persistNow, 200); scheduleSync(); setSyncUI(); }
+function persistNow() {
+  clearTimeout(saveTimer);
+  saving = saving.then(() => Promise.all([idbPut('kv', CK, state), idbPut('kv', OK, outbox)])).catch(e => toast('儲存失敗：' + e.message));
+  setSyncUI();
+  return saving;
+}
+// 存一筆缺失（之後自動上傳）
+function saveD(d, newPhotos) {
+  state.defects[d.id] = d;
+  outbox.d[d.id] = ++seq;
+  (newPhotos || []).forEach(id => { if (!outbox.ph.includes(id)) outbox.ph.push(id); });
+  persist();
+}
+const pendingCount = () => outbox.ph.length + Object.keys(outbox.d).length + outbox.del.length + (outbox.cu || []).length;
+const isPending = id => !!outbox.d[id];
+let syncing = false, pulling = false, pullAgain = false, syncErr = '', syncTimer, lastPull = 0;
+function setSyncUI() {
+  const el = $('sync');
+  if (!auth || VCODE) { el.textContent = ''; return; }
+  if (SOLO) { el.textContent = '📱 單機'; el.title = '資料只存在這支手機'; return; }
+  const n = pendingCount();
+  el.textContent = syncing ? '⏳ 上傳中' : n ? (syncErr ? `⚠️ ${n} 筆未上傳` : `⏳ ${n}`) : '☁️ 已同步';
+  el.title = syncErr || '';
+}
+function scheduleSync(ms) { clearTimeout(syncTimer); syncTimer = setTimeout(sync, ms || 800); }
+function syncNow() { if (syncErr) toast(syncErr); return sync(); }
+// 上傳給後端的欄位（v、at、who 是後端的）
+function payload(d) { const o = clone(d); delete o.v; delete o.at; delete o.who; return o; }
+const SERVER_KEYS = ['no', 'created', 'by', 'byUser', 'fixes', 'log', 'acked', 'sent', 'ns'];
+// 同時跑 k 個；全部跑完才結束，有網路錯誤就丟出第一個
+async function pool(items, k, fn) {
+  let i = 0;
+  const rs = await Promise.allSettled(Array.from({ length: Math.min(k, items.length) }, async () => { while (i < items.length) await fn(items[i++]); }));
+  const bad = rs.find(r => r.status === 'rejected');
+  if (bad) throw bad.reason;
+}
+let syncRuns = 0;
+// 等這幾筆缺失傳上去（拿到編號）；照片可以晚點傳
+async function waitUploaded(ids, ms) {
+  const busy = () => ids.some(isPending), t0 = Date.now(), run0 = syncRuns;
+  while (busy() && Date.now() - t0 < (ms || 30000)) {
+    if (!syncing) sync();
+    await new Promise(r => setTimeout(r, 250));
+    if (syncErr && !syncing && syncRuns > run0) break;
+  }
+  return !busy();
+}
+async function sync() {
+  if (!auth || syncing) return;
+  if (!pendingCount()) { syncErr = ''; setSyncUI(); return; }
+  syncing = true; setSyncUI();
+  // 伺服器拒絕的（不是網路問題）就略過，不要卡住後面的資料
+  const skipBad = async fn => { try { return await fn(); } catch (e) { if (!(e instanceof ServerError)) throw e; toast(e.message); return null; } };
+  let needPull = false;
+  try {
+    while (outbox.cu.length) {
+      await skipBad(() => api('saveCustom', outbox.cu[0]));
+      outbox.cu.shift(); await persistNow();
+      needPull = true;
+    }
+    while (outbox.del.length) {
+      await skipBad(() => api('deleteDefect', { id: outbox.del[0] }));
+      if (touched) touched.add(outbox.del[0]);
+      outbox.del.shift(); await persistNow();
+    }
+    // 缺失先傳：雲端後端每次來回約 2 秒，3 筆一起傳
+    const sendDefects = () => pool(Object.keys(outbox.d), 3, async id => {
+      const n = outbox.d[id], d = state.defects[id];
+      if (n === undefined) return;
+      if (!d) { delete outbox.d[id]; return; }
+      const r = await skipBad(() => api('saveDefect', { defect: payload(d), baseV: d.v || 0 }));
+      if (touched) touched.add(id);
+      if (!r) { delete outbox.d[id]; needPull = true; }
+      else if (r.conflict) { state.defects[id] = r.defect; delete outbox.d[id]; toast(r.err + '，請再確認一次'); }
+      else if (r.gone) { delete state.defects[id]; delete outbox.d[id]; toast(r.err); }
+      else if (outbox.d[id] === n) { state.defects[id] = r.defect; delete outbox.d[id]; }
+      else {
+        // 上傳時又改了：保留手機上的新修改，只更新後端管的欄位，等一下再傳一次
+        const cur = state.defects[id];
+        SERVER_KEYS.forEach(k => { cur[k] = r.defect[k]; });
+        cur.v = r.v;
+        cur.reviews = r.defect.reviews.concat((cur.reviews || []).slice(r.defect.reviews.length));
+      }
+      await persistNow();
+    });
+    await sendDefects();
+    render(true);   // 「未上傳」先消掉，照片在背景繼續傳
+    // 照片後傳，3 張一起；中間又存了新缺失就先傳缺失
+    while (outbox.ph.length) {
+      if (Object.keys(outbox.d).length) { await sendDefects(); render(true); }
+      const batch = outbox.ph.slice(0, 3);
+      await pool(batch, 3, async id => { const data = await photoGet(id); if (data) await skipBad(() => api('uploadPhoto', { id, data })); });
+      outbox.ph = outbox.ph.filter(id => !batch.includes(id)); await persistNow();
+    }
+    syncErr = '';
+  } catch (e) { syncErr = e.message; }
+  syncing = false; syncRuns++;
+  setSyncUI(); render(true);
+  if (pendingCount()) scheduleSync(syncErr ? 20000 : 300);
+  else if (needPull || pullAgain) { pullAgain = false; pull(true); }
+}
+// 公司版：照片傳上雲端後，手機只留「還沒通知廠商」或 1 天內開的單要用的（做 PDF 快）；其他刪掉，要看時再從雲端抓。
+// 單機版照片只存在手機，不能刪。
+let lastClean = 0;
+async function cleanPhotos() {
+  if (SOLO || !auth || pendingCount() || Date.now() - lastClean < 10 * 60e3) return;
+  lastClean = Date.now();
+  const keep = new Set(), since = ymd(new Date(Date.now() - 864e5));
+  Object.values(state.defects).forEach(d => {
+    if (OPEN(d.status) && (needNotice(d) || String(d.created || '').slice(0, 10) >= since)) (d.photos || []).forEach(id => keep.add(id));
+  });
+  try { (JSON.parse(localStorage.getItem(LS('dfi_draft')) || 'null') || { photos: [] }).photos.forEach(id => keep.add(id)); } catch (e) {}
+  if (draft) (draft.photos || []).forEach(id => keep.add(id));
+  if (rv) (rv.photos || []).forEach(id => keep.add(id));
+  for (const id of await idbKeys('photos')) if (!keep.has(id)) { delete photoCache[id]; await idbDel('photos', id); }
+}
+// 從雲端拿最新資料（還沒上傳的修改蓋在上面）
+let touched = null;   // 讀取全部資料期間，上傳或刪掉的缺失
+async function pull(quiet) {
+  if (!auth) return;
+  if (pulling || syncing) { pullAgain = true; return; }
+  pulling = true; touched = new Set();
+  try {
+    const r = await api('list');
+    const defects = {};
+    r.defects.forEach(d => { defects[d.id] = d; });
+    // 手機上比較新的留著：還沒上傳的、讀取時剛傳上去的（版本比較新）、讀取時剛刪掉的
+    Object.values(state.defects).forEach(d => { const o = defects[d.id]; if (o && (d.v || 0) > (o.v || 0)) defects[d.id] = d; });
+    touched.forEach(id => { if (state.defects[id]) { if (!defects[id]) defects[id] = state.defects[id]; } else delete defects[id]; });
+    Object.keys(outbox.d).forEach(id => { if (state.defects[id]) defects[id] = state.defects[id]; });
+    outbox.del.forEach(id => { delete defects[id]; });
+    // 共用工項／常用語：雲端的＋還沒上傳的修改
+    let customs = r.customs || [];
+    outbox.cu.forEach(o => { customs = applyCustom(customs, o); });
+    state = { projects: r.projects, vendors: r.vendors, defects, customs };
+    lastPull = Date.now();
+    await persistNow();
+  } catch (e) { if (!quiet) toast(e.message); }
+  pulling = false; touched = null;
+  render(true);
+  if (pullAgain) { pullAgain = false; setTimeout(() => pull(true), 100); }
+  else cleanPhotos();
+  if (pendingCount()) scheduleSync();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) persistNow();
+  else if (auth && !VCODE && Date.now() - lastPull > 30000) pull(true);
+});
+window.addEventListener('pagehide', () => persistNow());
+window.addEventListener('online', () => { if (auth) syncNow(); });
+
+// ── 目前建案 ─────────────────────────────
+const activeProjects = () => state.projects.filter(p => !p.disabled);
+function curP() {
+  const id = localStorage.getItem(LS('dfi_pid'));
+  return state.projects.find(p => p.id === id && !p.disabled) || activeProjects()[0] || null;
+}
+const projDefects = () => { const p = curP(); return p ? Object.values(state.defects).filter(d => d.pid === p.id) : []; };
+const vendorOf = id => state.vendors.find(v => v.id === id);
+const vName = id => { const v = vendorOf(id); return v ? v.name : '（未指定廠商）'; };
+function pickProject() {
+  const ps = activeProjects();
+  if (!ps.length) { if (isAdmin()) go({ name: 'projects' }); return; }
+  sheet(`<h3>選擇建案</h3>${ps.map(p => `<div class="user-row" onclick="localStorage.setItem(LS('dfi_pid'),'${p.id}');closeLayer();render()"><b class="grow">${esc(p.name)}</b>${curP() && curP().id === p.id ? '✔' : ''}</div>`).join('')}
+    ${isAdmin() ? '<button class="btn ghost block" onclick="closeLayer();go({name:\'projects\'})">管理建案</button>' : ''}`);
+}
+function sheet(html) {
+  $('layer').innerHTML = `<div class="modal" onclick="if(event.target===this)closeLayer()"><div class="sheet">${html}</div></div>`;
+  hydratePhotos($('layer'));
+  armHistory();
+}
+
+// ── 畫面切換 ─────────────────────────────
+let view = { name: 'start' };
+const stack = [];
+const TABS = [['start', '🏠', '首頁'], ['home', '📊', '總覽'], ['list', '📋', '清單'], ['review', '✅', '複查'], ['vendors', '🏢', '廠商']];
+function go(v) { stack.push(view); view = v; render(); scrollTo(0, 0); }
+let tabPrev = null;   // 從哪個分頁切過來的（分頁也能按「返回」）
+function tab(name) {
+  if (view.name !== name || stack.length) tabPrev = stack.length ? stack[0] : view;
+  stack.length = 0;
+  if (name === 'list') LF.vid = null;
+  if (name === 'edit' && view.name === 'edit' && !view.id) return;
+  view = name === 'edit' ? { name: 'edit' } : { name };
+  if (name === 'edit') startDraft(null);
+  render(); scrollTo(0, 0);
+}
+function goBack() {
+  if (view.name === 'edit' && view.id && draftDirty && !confirm('修改還沒存，確定離開？')) return;
+  if (stack.length) view = stack.pop();
+  else { view = tabPrev && tabPrev.name !== view.name ? tabPrev : { name: 'start' }; tabPrev = null; }
+  if (view.name === 'edit' && !view.id) startDraft(null);
+  render();
+}
+// 還能不能往回（畫面上的「返回」和手機的返回鍵共用）
+const canBack = () => !!$('layer').innerHTML || stack.length > 0 || !['start', 'login'].includes(view.name);
+// 手機返回鍵／返回手勢：先關掉跳出的視窗，再回上一頁，都沒有了才離開 App
+let histArmed = false, skipPop = false;
+function armHistory() {
+  if (VCODE) return;
+  if (!histArmed && canBack()) { history.pushState({ dfi: 1 }, ''); histArmed = true; }
+  // 用畫面上的「返回」回到首頁了：把多出來的那一筆收掉，手機按一次返回就能離開
+  else if (histArmed && !canBack()) { histArmed = false; skipPop = true; history.back(); }
+}
+window.addEventListener('popstate', () => {
+  if (skipPop) { skipPop = false; return; }
+  histArmed = false;
+  if (VCODE) return;
+  if ($('layer').innerHTML) closeLayer();
+  else if (canBack()) goBack();
+  armHistory();
+});
+function render(soft) {
+  // soft：背景資料更新時，正在打字的畫面不要重畫
+  if (soft && ['edit', 'login', 'notice', 'userEdit'].includes(view.name)) { setNav(); return; }
+  if (soft && document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.closest('#app')) { setNav(); return; }
+  const y = soft ? scrollY : 0;
+  $('hdrRight').style.display = 'none';
+  $('title').className = '';
+  $('title').onclick = null;
+  if (VCODE) { renderVendorPortal(); return; }
+  if (!auth) view = { name: 'login' };
+  else if (trialState() === 'none') view = { name: 'trial' };
+  const fn = VIEWS[view.name] || VIEWS.home;
+  $('backBtn').style.display = canBack() && view.name !== 'notice' ? '' : 'none';
+  $('app').innerHTML = fn();
+  if (trialState() === 'expired' && ['start', 'home'].includes(view.name))
+    $('app').insertAdjacentHTML('afterbegin', `<div class="card" style="background:#fff5f5;border:2px solid #ffa8a8"><b>⛔ ${trialEndText()}</b><div class="muted">還可以看資料、傳 PDF、備份（⚙ 設定 → 📦 備份），不能再開新的缺失。</div></div>`);
+  setNav(); setSyncUI();
+  if (soft) scrollTo(0, y);
+  hydratePhotos($('app'));
+  if (AFTER[view.name]) AFTER[view.name]();
+  armHistory();
+}
+function setNav() {
+  const N = $('nav');
+  const show = auth && !VCODE && !['login', 'notice'].includes(view.name);
+  N.style.display = show ? 'flex' : 'none';
+  if (!show) return;
+  const root = stack.length ? (stack[0].name) : view.name;
+  const nCheck = projDefects().filter(d => d.status === 'check' || isLate(d)).length;   // 複查分頁的紅點：逾期＋舊的待複查
+  N.innerHTML = TABS.map(([k, ic, n]) => `<button class="${root === k ? 'on' : ''}" onclick="tab('${k}')"><b>${ic}</b>${n}${k === 'review' && nCheck ? `<i>${nCheck}</i>` : ''}</button>`).join('');
+}
+function hdr(title, opt) {
+  $('title').textContent = title;
+  if (opt && opt.pick) { $('title').className = 'pick'; $('title').onclick = pickProject; }
+  if (opt && opt.right) { const b = $('hdrRight'); b.style.display = ''; b.textContent = opt.right[0]; b.onclick = opt.right[1]; }
+}
+const VIEWS = {}, AFTER = {};
+
+// ── 登入 ─────────────────────────────
+let hasUsers = null;
+VIEWS.login = () => {
+  hdr('缺失改善系統');
+  if (SOLO) return `<div class="card login"><h3>📱 單機使用</h3>
+    <p class="muted">資料只存在這支手機。請填你的名字（會印在 PDF 的「開單人」）。</p>
+    <label class="f">你的名字</label><input type="text" id="ln" maxlength="20">
+    <label class="f">試用碼</label><input type="text" id="lt" maxlength="20" autocapitalize="characters" autocomplete="off">
+    <div class="muted" style="font-size:13px">輸入時會記錄名字和手機種類，讓提供的人知道誰在試用；缺失、照片不會傳出去。</div>
+    <button class="btn block" id="lb" onclick="soloStart()">開始使用</button>
+    <div class="ver">${VERSION}</div></div>`;
+  if (!API) return `<div class="card login"><h3>還沒設定後端</h3><p class="muted">請聯絡管理者。</p></div>`;
+  if (hasUsers === null) {
+    api('hasUsers').then(r => { hasUsers = r.has; render(); }).catch(e => { $('app').innerHTML = `<div class="card login"><p>${esc(e.message)}</p><button class="btn block" onclick="render()">再試一次</button></div>`; });
+    return '<div class="empty">連線中…</div>';
+  }
+  const first = !hasUsers;
+  return `<div class="card login"><h3>${first ? '建立第一個後台帳號' : '登入'}</h3>
+    ${first ? '<p class="muted">第一次使用，請先建立後台管理者帳號。</p>' : ''}
+    <label class="f">帳號</label><input type="text" id="lu" autocapitalize="off" autocomplete="username">
+    ${first ? '<label class="f">姓名</label><input type="text" id="ln">' : ''}
+    <label class="f">密碼</label><input type="password" id="lp" autocomplete="${first ? 'new-password' : 'current-password'}">
+    <button class="btn block" id="lb" onclick="doLogin(${first})">${first ? '建立並登入' : '登入'}</button>
+    <div class="ver">${VERSION}</div></div>`;
+};
+// ── 單機版試用：要試用碼才能用、到期日後不能開新單（設定在 trial.json，用電腦上的「試用管理.bat」改）──
+// trial.json：{ until: '2027-12-31', codes: [試用碼的 SHA-256], owners: [自己用的碼，不會到期] }
+const sha256hex = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('');
+let trialCfg = null;
+try { trialCfg = JSON.parse(localStorage.getItem(LS('dfi_trialcfg')) || 'null'); } catch (e) {}
+async function loadTrial() {
+  try {
+    const r = await fetch('trial.json', { cache: 'no-cache' });
+    if (r.ok) { trialCfg = await r.json(); localStorage.setItem(LS('dfi_trialcfg'), JSON.stringify(trialCfg)); }
+  } catch (e) {}   // 沒網路就用上次的設定
+  return trialCfg;
+}
+// ok：可以用；none：還沒輸入試用碼；expired：到期或被停用（還能看、能備份，不能開新單）
+function trialState() {
+  if (!SOLO) return 'ok';
+  const h = localStorage.getItem(LS('dfi_trial')), c = trialCfg;
+  if (!h) return 'none';
+  if (!c || (c.owners || []).includes(h)) return 'ok';
+  if (!(c.codes || []).includes(h)) return 'expired';
+  return c.until && ymd(new Date()) > c.until ? 'expired' : 'ok';
+}
+async function trialCheck(code) {
+  code = String(code || '').trim().toUpperCase();
+  if (!code) throw new Error('請輸入試用碼');
+  const h = await sha256hex(code);
+  if (!await loadTrial()) throw new Error('第一次要連網路才能確認試用碼');
+  if (!(trialCfg.codes || []).concat(trialCfg.owners || []).includes(h)) throw new Error('試用碼不對，請跟提供的人確認');
+  return h;
+}
+// 輸入試用碼時記一筆到公司後端（只有：哪組碼、名字、手機代號、手機種類；缺失資料不會傳）。沒網路就下次打開再傳
+function trialReport(h, name) {
+  let dev = localStorage.getItem(LS('dfi_dev'));
+  if (!dev) { dev = uid() + uid(); localStorage.setItem(LS('dfi_dev'), dev); }
+  const ua = (navigator.userAgent.match(/iPhone|iPad|Android[^;)]*|Windows|Macintosh/) || ['其他'])[0].slice(0, 60);
+  localStorage.setItem(LS('dfi_trialrep'), JSON.stringify({ h, name: String(name || '').slice(0, 20), dev, ua }));
+  trialSend();
+}
+async function trialSend() {
+  const r = localStorage.getItem(LS('dfi_trialrep'));
+  if (!r || LOCAL) return;   // 本機測試不要記到真的後端
+  try {
+    const res = await fetch(API_DEFAULT, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'trialLog' }, JSON.parse(r))) });
+    if ((await res.json()).ok) localStorage.removeItem(LS('dfi_trialrep'));
+  } catch (e) {}
+}
+async function trialEnter() {
+  const b = $('tb'); b.disabled = true;
+  try { const h = await trialCheck($('tc').value); localStorage.setItem(LS('dfi_trial'), h); trialReport(h, auth && auth.me.name); view = { name: 'start' }; render(); }
+  catch (e) { toast(e.message); b.disabled = false; }
+}
+VIEWS.trial = () => {
+  hdr('缺失改善單機版');
+  return `<div class="card login"><h3>🔑 請輸入試用碼</h3>
+    <p class="muted">單機版目前是試用，請輸入提供給你的試用碼（第一次要連網路）。</p>
+    <p class="muted" style="font-size:13px">輸入時會記錄你的名字和手機種類，讓提供的人知道誰在試用；開的缺失、照片只在你的手機，不會傳出去。</p>
+    <label class="f">試用碼</label><input type="text" id="tc" maxlength="20" autocapitalize="characters" autocomplete="off">
+    <button class="btn block" id="tb" onclick="trialEnter()">確定</button><div class="ver">${VERSION}</div></div>`;
+};
+const trialEndText = () => (trialCfg && (trialCfg.codes || []).includes(localStorage.getItem(LS('dfi_trial')))
+  ? `試用已經結束（到 ${esc(String(trialCfg.until || '').replace(/-/g, '/'))}）` : '這組試用碼已經停用');
+async function soloStart(quiet) {
+  const b = $('lb'); if (b) b.disabled = true;
+  try {
+    if (!quiet && $('lt')) { const h = await trialCheck($('lt').value); localStorage.setItem(LS('dfi_trial'), h); trialReport(h, $('ln') ? $('ln').value : ''); }
+    setAuth(await api('soloAuth', { name: $('ln') ? $('ln').value : '' }));
+    const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
+    if (saved) state = saved;
+    if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
+    fixLoaded();
+    if (!quiet) { view = { name: 'start' }; render(); }
+    await pull(true);
+  } catch (e) { toast(e.message); if (b) b.disabled = false; }
+}
+async function doLogin(first) {
+  const b = $('lb'); b.disabled = true;
+  try {
+    const q = { user: $('lu').value, pass: $('lp').value };
+    if (first) q.name = $('ln').value;
+    const r = await api(first ? 'setupFirst' : 'login', q);
+    setAuth(r);
+    const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
+    if (saved) state = saved;
+    if (box) outbox = box;
+    fixLoaded(); migrateLocalCustoms();
+    view = { name: 'start' }; render(); pull();
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+
+// ── 首頁：建案列表（點一下進那個建案）──────────────
+VIEWS.start = () => {
+  hdr('缺失改善系統', { right: ['⚙', () => go({ name: 'settings' })] });
+  const ps = activeProjects();
+  if (!ps.length) return `<div class="card"><h3>還沒有建案</h3>${isAdmin()
+    ? `<p class="muted">先新增一個建案，才能開始記缺失。</p><button class="btn block" onclick="editProject(null)">＋ 新增建案</button>`
+    : '<p class="muted">請後台人員先新增建案。</p><button class="btn ghost block" onclick="pull()">重新整理</button>'}</div>`;
+  const cur = curP();
+  const lb = localStorage.getItem(LS('dfi_lastBackup')), nd = Object.keys(state.defects).length;
+  const bdays = lb ? Math.floor((Date.now() - new Date(lb)) / 864e5) : null;
+  const remind = SOLO && nd && (bdays === null || bdays >= 7) ? `<div class="card" style="background:#fff4e6" onclick="go({name:'settings'})"><b>📦 ${bdays === null ? '還沒備份過' : `已經 ${bdays} 天沒備份`}</b><div class="muted">單機版資料只在這支手機，點這裡備份。</div></div>` : '';
+  return remind + `<div class="muted" style="margin:0 4px 8px">點建案進去看缺失、開單</div>` + ps.map(p => {
+    const ds = Object.values(state.defects).filter(d => d.pid === p.id), n = s => ds.filter(d => d.status === s).length;
+    const late = ds.filter(isLate).length;
+    return `<div class="card" style="cursor:pointer;${cur && cur.id === p.id ? 'box-shadow:inset 4px 0 0 var(--steel),0 1px 3px rgba(0,0,0,.06)' : ''}" onclick="openProject('${p.id}')">
+      <div class="row"><b class="grow" style="font-size:18px">🏗 ${esc(p.name)}</b><span class="muted">›</span></div>
+      <div class="row wrap" style="margin-top:8px;gap:6px">
+        <span class="tag s-wait">待改善 ${n('wait') + n('doing')}</span>${late ? `<span class="tag s-wait" style="background:#a61e1e">逾期 ${late}</span>` : ''}
+        <span class="tag s-check">待複查 ${n('check')}</span><span class="tag s-done">已結案 ${n('done')}</span></div></div>`;
+  }).join('') + (isAdmin() ? `<button class="btn block" onclick="editProject(null)">＋ 新增建案</button><button class="btn ghost block" onclick="go({name:'projects'})">管理建案（改名、停用）</button>` : '');
+};
+function openProject(id) { localStorage.setItem(LS('dfi_pid'), id); tab('home'); }
+
+// ── 總覽 ─────────────────────────────
+VIEWS.home = () => {
+  const p = curP();
+  hdr(p ? p.name + ' ▾' : '缺失改善系統', { pick: true, right: ['⚙', () => go({ name: 'settings' })] });
+  if (!p) return `<div class="card"><h3>還沒有建案</h3><p class="muted">請到「首頁」選擇或新增建案。</p><button class="btn block" onclick="tab('start')">回首頁</button></div>`;
+  // 各廠商還有幾件（未結案），多的排前面；點進去就是該廠商的清單
+  const open = projDefects().filter(d => OPEN(d.status)), byV = {};
+  open.forEach(d => { const k = d.vid || ''; const x = byV[k] = byV[k] || { n: 0, late: 0, check: 0, un: 0 }; x.n++; if (isLate(d)) x.late++; if (d.status === 'check') x.check++; if (needNotice(d)) x.un++; });
+  const unTotal = open.filter(d => d.vid && needNotice(d)).length;
+  const vs = Object.entries(byV).sort((a, b) => b[1].n - a[1].n || b[1].late - a[1].late);
+  const all = projDefects(), nLate = open.filter(isLate).length, nDone = all.length - open.length;
+  return `<div class="dash">
+      <button class="d-wait" onclick="go({name:'list',vid:null,st:'open'})"><b>${open.length}</b>待改善</button>
+      <button class="d-late" onclick="go({name:'list',vid:null,st:'late'})"><b>${nLate}</b>逾期</button>
+      <button class="d-done" onclick="go({name:'list',vid:null,st:'done'})"><b>${nDone}</b>結案</button></div>
+    <button class="btn block" style="margin:0 0 12px;padding:14px;font-size:17px" onclick="newDefect()">📷 新增缺失</button>
+    ${unTotal ? `<div class="card" style="background:#fff4e6"><b>🔔 有 ${unTotal} 筆還沒通知廠商</b><div class="muted">點下面的廠商，按「傳 PDF 給廠商」一次傳完。</div></div>` : ''}
+    <div class="card"><h3>各廠商還有幾件（共 ${open.length} 件未結案）</h3>${vs.length ? vs.map(([vid, x]) => {
+      const v = vendorOf(vid);
+      return `<div class="user-row" onclick="go({name:'list',vid:'${vid}',st:'open'})">
+        <div class="grow"><b>${esc(v ? v.name : '未指定廠商')}</b> ${v ? tradeTag(vTrade(v)) : ''}
+          <div class="muted">${x.un && vid ? `<span style="color:#e8590c;font-weight:bold">🔔 ${x.un} 筆未通知</span>　` : ''}${x.late ? `<span class="red">逾期 ${x.late}</span>　` : ''}${x.check ? `待複查 ${x.check}` : ''}</div></div>
+        <b style="font-size:18px;white-space:nowrap">還有 ${x.n} 件</b><span class="muted">›</span></div>`;
+    }).join('') : '<div class="muted">目前沒有未結案的缺失 👍</div>'}</div>`;
+};
+function newDefect() {
+  if (trialState() === 'expired') { toast(trialEndText() + '，不能再開新的缺失'); return; }
+  startDraft(null); go({ name: 'edit' }); warmUp(); }
+let lastWarm = 0;
+function warmUp() { if (SOLO || !auth || Date.now() - lastWarm < 60e3) return; lastWarm = Date.now(); api('me').catch(() => {}); }
+// 通知廠商的狀態（只看待改善／改善中）：none 未通知、stale 有更新未通知、sent 已通知
+function noticeOf(d) {
+  if (d.status !== 'wait' && d.status !== 'doing') return null;
+  if (isPending(d.id)) return d.sent ? 'stale' : 'none';
+  return d.ns || (d.sent ? 'sent' : 'none');
+}
+const needNotice = d => { const n = noticeOf(d); return n === 'none' || n === 'stale'; };
+function noticeTag(d) {
+  const n = noticeOf(d);
+  if (n === 'none') return '<span class="tag" style="background:#f08c00">未通知</span>';
+  if (n === 'stale') return '<span class="tag" style="background:#f08c00">有更新未通知</span>';
+  if (n === 'sent') return `<span class="tag" style="background:#e9ecef;color:#495057">已通知 ${md(String(d.sent.at).slice(0, 10))}</span>`;
+  return '';
+}
+function itemHTML(d) {
+  return `<div class="item ${isLate(d) ? 'late' : ''}" id="it-${d.id}" onclick="go({name:'detail',id:'${d.id}'})">
+    <div class="thumb">${d.photos && d.photos[0] ? imgTag(d.photos[0]) : '📝'}</div>
+    <div class="grow"><div class="it-t">${noText(d)}　${esc(locText(d))}</div>
+    <div class="it-m">${stTag(d)}${noticeTag(d)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}${esc(d.trade)}</div>
+    <div class="it-m" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.note)}</div>
+    <div class="it-m">${esc(vName(d.vid))}　${dueText(d)}</div></div></div>`;
+}
+
+// ── 新增／修改缺失 ─────────────────────────
+let draft = null, draftDirty = false;
+function startDraft(id) {
+  draftDirty = false;
+  if (id) { draft = clone(state.defects[id]); draft._orig = clone(draft.photos); return; }
+  // 新單：先看有沒有沒存完的（相機開啟時手機可能會重新載入網頁）
+  try { const s = JSON.parse(localStorage.getItem(LS('dfi_draft')) || 'null'); if (s && curP() && s.pid === curP().id) { draft = s; return; } } catch (e) {}
+  let last = JSON.parse(localStorage.getItem(LS('dfi_last')) || '{}');
+  if (curP() && last.pid && last.pid !== curP().id) last = { cat: last.cat };   // 別的建案的棟、樓層不要帶過來
+  draft = { id: uid(), pid: curP() ? curP().id : '', cat: last.cat || '結構體', trade: '', vid: '', bldg: last.bldg || '', floor: last.floor || '', spot: '',
+    note: '', req: '', photos: [], due: addDays(7), dueN: 7, status: 'wait', reviews: [], _orig: [] };
+}
+function keepDraft() { draftDirty = true; if (!view.id) { draft._t = Date.now(); localStorage.setItem(LS('dfi_draft'), JSON.stringify(draft)); } }
+// 剛剛（30 分鐘內）開單到一半（iPhone 拍照時 App 可能被關掉重開）才直接回到新增畫面；放久了就從首頁開始
+function resumeDraft() {
+  let s = null; try { s = JSON.parse(localStorage.getItem(LS('dfi_draft')) || 'null'); } catch (e) {}
+  if (!s || !(Date.now() - (s._t || 0) < 30 * 60e3)) return;
+  stack.push({ name: 'home' }); view = { name: 'edit' }; startDraft(null);
+}
+// 廠商依建案分：同一家可以在好幾個建案（回報連結共用）
+const inProj = (v, pid) => (v.pids || []).includes(pid);
+const projVendors = () => { const p = curP(); return p ? state.vendors.filter(v => inProj(v, p.id)) : []; };
+// v22 不分大分類：開單只選「廠商」，缺失說明照廠商的工項帶。d.cat（結構體／室內／室外）只留在資料裡給後端，用工項自動決定。
+const vCats = v => (v.cats && v.cats.length ? v.cats : [v.cat]);
+const vTrade = v => (v && v.trades && v.trades[0]) || '';
+const tradeTag = t => (t ? `<span class="tag" style="background:#8a7f74">${esc(t)}</span>` : '');
+const BASE_TRADES = [...new Set(CATS.flatMap(c => Object.keys(TRADES[c])))].filter(t => t !== '其他');
+// 全部工項：內建的＋大家加的＋廠商身上有的，「其他」放最後
+const allTrades = () => [...new Set(BASE_TRADES.concat((state.customs || []).filter(c => c.kind === 'trade').map(c => c.text), state.vendors.map(vTrade).filter(Boolean)))].filter(t => t !== '其他').concat(['其他']);
+function catOfTrade(t, v) {
+  const c = CATS.find(x => (TRADES[x] || {})[t]);
+  if (c) return c;
+  const cu = (state.customs || []).find(x => x.kind === 'trade' && x.text === t);
+  if (cu && CATS.includes(cu.key)) return cu.key;
+  return (v && CATS.includes(vCats(v)[0]) && vCats(v)[0]) || '結構體';
+}
+// 這個工項的常用缺失：三類合併＋大家加的（加的記在「分類|工項」底下）
+function phrasesOf(t) {
+  const base = [...new Set(CATS.flatMap(c => (TRADES[c] || {})[t] || []))];
+  const mine = (state.customs || []).filter(c => c.kind === 'phrase' && c.key.split('|')[1] === t && !base.includes(c.text));
+  return { base, mine };
+}
+VIEWS.edit = () => {
+  const p = curP();
+  hdr(view.id ? '修改缺失 ' + noText(draft) : '新增缺失', { right: view.id ? null : ['清空', () => { if (confirm('清空重填？')) { localStorage.removeItem(LS('dfi_draft')); startDraft(null); render(); } }] });
+  if (!p) return `<div class="card">請先在總覽新增／選擇建案。</div>`;
+  if (!draft) startDraft(view.id || null);
+  const d = draft;
+  photoLists.draft = { get: () => d.photos, editable: true, changed: () => { keepDraft(); render(); } };
+  photoTargets.draft = id => { d.photos.push(id); keepDraft(); render(); };
+  const multi = !view.id;
+  if (multi && !d.vids) d.vids = d.vid ? [d.vid] : [];
+  const t = d.trade, ph = phrasesOf(t);
+  const used = f => [...new Set(Object.values(state.defects).filter(x => x.pid === p.id).map(x => x[f]).filter(Boolean))];
+  const dueN = [3, 7, 14].includes(d.dueN) ? d.dueN : 0;
+  return `<div class="card">
+    <label class="f" style="margin-top:0">缺失照片（點照片可以畫圈標示）</label>
+    <div class="photos">${photoRow(d.photos, 'draft', true)}${d.photos.length < 12 ? photoAdders('draft') : ''}</div>
+    ${p.loc ? locPickHTML(d, p.loc) : `<label class="f">位置</label>
+    <div class="muted" style="color:#e8590c">這個建案還沒設定位置規劃，${isAdmin() ? '到 首頁 → 管理建案 → 點建案 設定' : '請後台人員到建案管理設定'}後，這裡會變成用點的。</div>
+    <div class="row"><input type="text" style="flex:1" placeholder="棟" list="dlB" value="${esc(d.bldg)}" oninput="draft.bldg=this.value;keepDraft()">
+      <input type="text" style="flex:1" placeholder="樓層" list="dlF" value="${esc(d.floor)}" oninput="draft.floor=this.value;keepDraft()">
+      <input type="text" style="flex:1.6" placeholder="位置（如 C3 柱）" value="${esc(d.spot)}" oninput="draft.spot=this.value;keepDraft()"></div>
+    <datalist id="dlB">${used('bldg').map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <datalist id="dlF">${used('floor').map(x => `<option value="${esc(x)}">`).join('')}</datalist>`}
+    <label class="f">負責廠商${multi ? '（可以選好幾家，每家各開一張單）' : ''}</label>
+    ${vendorChipsHTML(d, multi)}
+    <label class="f">缺失說明${t ? `（${esc(t)}）` : ''}</label>
+    ${t ? `<div class="chips" style="margin-bottom:6px">${ph.base.map(x => `<button class="chip" onclick="addPhrase(${jsq(x)})">${esc(x)}</button>`).join('')}${ph.mine.map(c => `<button class="chip" onclick="addPhrase(${jsq(c.text)})">${esc(c.text)}${canDropMine('phrase', c.key, c.text) ? ` <span onclick="event.stopPropagation();dropMine('phrase',${jsq(c.key)},${jsq(c.text)})">✕</span>` : ''}</button>`).join('')}
+      <button class="chip add" onclick="newPhrase()">＋ 新增常用語</button></div>`
+      : `<div class="muted" style="margin-bottom:6px">${d.vid ? '這家廠商還沒設工項，到「廠商」修改，就會出現常用缺失' : '先選廠商，會出現這家廠商常見的缺失'}</div>`}
+    <textarea id="noteT" placeholder="例如：樑底蜂窩約 30×20cm" oninput="draft.note=this.value;keepDraft()">${esc(d.note)}</textarea>
+    <label class="f">改善要求（可不填）</label>
+    <textarea placeholder="例如：打除鬆散部分後以無收縮水泥砂漿修補" oninput="draft.req=this.value;keepDraft()">${esc(d.req)}</textarea>
+    <label class="f">改善期限</label>
+    <div class="chips">${[3, 7, 14].map(n => `<button class="chip ${dueN === n ? 'on' : ''}" onclick="setDue(${n})">${n} 天</button>`).join('')}
+      <input type="date" style="width:auto;padding:5px 8px;font-size:15px" value="${esc(d.due)}" onchange="draft.due=this.value;draft.dueN=0;keepDraft();render()"></div>
+    <div class="muted" style="margin-top:4px">到 ${md(d.due)}（${['日', '一', '二', '三', '四', '五', '六'][new Date(d.due + 'T00:00').getDay()]}）</div>
+  </div>
+  ${view.id ? `<button class="btn block" onclick="saveDraft(false)">儲存修改</button>`
+    : `<button class="btn block" onclick="saveDraft(false)">儲存缺失</button>
+       <button class="btn line block" onclick="saveDraft(true)">儲存並傳 PDF 給廠商</button>
+       <div class="muted" style="text-align:center;margin-top:4px">也可以只按「儲存缺失」，收工前到總覽一次傳給廠商</div>`}`;
+};
+// 位置：依建案的位置規劃用點的（棟只有一棟就不顯示）。
+// 位置存成「戶別 位置1 位置2…」，例如「A戶 浴室 牆」；位置可以點好幾個，戶別只選一個
+const placesOf = l => [...new Set([].concat(l.struct || [], l.rooms || [], l.outer || []))];
+function spotParts(d, l) {
+  const t = String(d.spot || '').split(' ').filter(Boolean), units = l.units || [];
+  const u = t.find(x => units.includes(x)) || '';
+  return { u, ps: t.filter(x => x !== u) };
+}
+function setSpot(u, ps) {
+  const l = curP().loc, all = [].concat(l.rooms || [], l.outer || [], l.struct || []), i = x => (all.indexOf(x) + 1 || 999);   // 寫成「A戶 浴室 牆」：空間在前、構件在後
+  draft.spot = [u].concat(ps.slice().sort((a, b) => i(a) - i(b))).filter(Boolean).join(' ');
+  keepDraft(); render();
+}
+function locChips(list, on, fn) {
+  return `<div class="chips">${list.map(x => `<button class="chip ${on.includes(x) ? 'on' : ''}" onclick="${fn}(${jsq(x)})">${esc(x)}</button>`).join('')}</div>`;
+}
+function locPickHTML(d, l) {
+  const fl = floorsOf(l), floors = d.floor && !fl.includes(d.floor) ? fl.concat([d.floor]) : fl, sp = spotParts(d, l);
+  const bl = l.bldgs || [], showB = bl.length > 1 || (d.bldg && !bl.includes(d.bldg));
+  const extra = sp.ps.filter(x => !placesOf(l).includes(x));   // 舊資料不在清單裡也要看得到
+  const row = (label, list) => (list || []).length ? `<div class="muted" style="margin-top:4px">${label}</div>${locChips(list, sp.ps, 'pickPlace')}` : '';
+  const units = (l.units || []).concat(sp.u && !(l.units || []).includes(sp.u) ? [sp.u] : []);
+  return `${showB ? `<label class="f">棟別</label>${locChips(bl, [d.bldg], 'pickBldg')}` : ''}
+    <label class="f">樓層</label>
+    <select onchange="draft.floor=this.value;keepDraft()"><option value="">— 選樓層 —</option>${floors.map(f => `<option ${d.floor === f ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
+    <label class="f">位置（可以點好幾個）</label>
+    ${row('結構', l.struct)}${row('空間', l.rooms)}${row('室外', l.outer)}${extra.length ? locChips(extra, extra, 'pickPlace') : ''}
+    ${!placesOf(l).length && !extra.length ? '<div class="muted">建案的位置規劃裡還沒有位置，請後台到建案管理加</div>' : ''}
+    ${units.length ? `<label class="f">戶別／公設（可不選）</label>${locChips(units, [sp.u], 'pickUnit')}` : ''}`;
+}
+function pickBldg(x) { draft.bldg = draft.bldg === x ? '' : x; keepDraft(); render(); }
+function pickUnit(x) { const sp = spotParts(draft, curP().loc); setSpot(sp.u === x ? '' : x, sp.ps); }
+function pickPlace(x) {
+  const sp = spotParts(draft, curP().loc);
+  setSpot(sp.u, sp.ps.includes(x) ? sp.ps.filter(y => y !== x) : sp.ps.concat([x]));
+}
+// 大家自己加的工項／常用語（雲端共用；沒網路先記著，有網路再上傳）
+function applyCustom(list, o) {
+  const rest = list.filter(c => !(c.kind === o.kind && c.key === o.key && c.text === o.text));
+  return o.op === 'add' ? rest.concat([{ kind: o.kind, key: o.key, text: o.text, byUser: o.byUser || '' }]) : rest;
+}
+const myCustoms = (kind, k) => (state.customs || []).filter(c => c.kind === kind && c.key === k);
+function myList(kind, k) { return myCustoms(kind, k).map(c => c.text); }
+const canDropMine = (kind, k, t) => isAdmin() || myCustoms(kind, k).some(c => c.text === t && (!c.byUser || c.byUser === auth.me.user));
+function addMine(kind, k, t) {
+  if (myList(kind, k).includes(t)) return;
+  const o = { op: 'add', kind, key: k, text: t, byUser: auth.me.user };
+  state.customs = applyCustom(state.customs || [], o);
+  outbox.cu.push({ op: o.op, kind: o.kind, key: o.key, text: o.text });
+  persist();
+}
+function dropMine(kind, k, t) {
+  if (!canDropMine(kind, k, t)) { toast('這是別人加的，只有他或後台能拿掉'); return; }
+  if (!confirm(`從大家的常用清單拿掉「${t}」？`)) return;
+  const o = { op: 'drop', kind, key: k, text: t };
+  state.customs = applyCustom(state.customs || [], o);
+  outbox.cu.push(o);
+  persist(); render();
+}
+// v3 存在手機裡的自訂清單 → 搬到雲端共用（只做一次）
+function migrateLocalCustoms() {
+  [['dfi_trades', 'trade'], ['dfi_phr', 'phrase']].forEach(([key, kind]) => {
+    let o = null; try { o = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+    if (o) Object.entries(o).forEach(([k, arr]) => (arr || []).forEach(t => addMine(kind, k, t)));
+    localStorage.removeItem(key);
+  });
+}
+function newPhrase() {
+  const t = draft.trade;
+  if (!t) { toast('先選廠商'); return; }
+  const x = (prompt(`新增「${t}」的常用缺失（之後點一下就能帶入）`) || '').trim().slice(0, 40);
+  if (!x) return;
+  addMine('phrase', catOfTrade(t, vendorOf(draft.vid)) + '|' + t, x);
+  addPhrase(x); render();
+}
+// 廠商：先點工項，再點那個工項的廠商（廠商多也不用一直往下拉）
+function vendorChipsHTML(d, multi) {
+  const pv = projVendors().filter(v => !v.disabled), ov = d._allV ? otherVendors() : [];
+  const sel = multi ? (d.vids || []) : [d.vid];
+  const chip = v => `<button class="chip ${sel.includes(v.id) ? 'on' : ''}" onclick="${multi ? 'togMulti' : 'pickVendor'}('${v.id}')">${sel.includes(v.id) ? '✔ ' : ''}${esc(v.name)}</button>`;
+  const groups = {};
+  pv.forEach(v => { const k = vTrade(v) || '未設工項'; (groups[k] = groups[k] || []).push(v); });
+  const order = allTrades().concat(Object.keys(groups)).filter((k, i, a) => groups[k] && a.indexOf(k) === i);
+  const cur = d._vt || '';
+  let h = '';
+  // 已選的廠商放最上面
+  const picked = sel.filter(Boolean);
+  if (picked.length) h += `<div class="chips" style="margin-bottom:4px">${picked.map(id => { const v = vendorOf(id); return `<button class="chip on" onclick="${multi ? 'togMulti' : 'pickVendor'}('${id}')">✔ ${esc(v ? v.name : vName(id))}${v && vTrade(v) ? `（${esc(vTrade(v))}）` : ''} ✕</button>`; }).join('')}</div>`;
+  if (pv.length) {
+    h += `<div class="chips">${order.map(k => { const n = groups[k].filter(v => sel.includes(v.id)).length;
+      return `<button class="chip ${cur === k ? 'on' : ''}" style="${cur === k ? '' : 'background:#fff4e6;border-color:#ffc078'}" onclick="pickVT(${jsq(k)})">${esc(k)}${n ? ` ✔${multi ? n : ''}` : ''}</button>`; }).join('')}</div>`;
+    if (cur && groups[cur]) h += `<div style="margin:6px 0 4px;padding:8px;background:#f8f9fa;border-radius:10px"><span class="muted">${esc(cur)} 的廠商</span><div class="chips">${groups[cur].map(chip).join('')}</div></div>`;
+    else if (!picked.length) h += '<div class="muted" style="margin-top:2px">先點工項，再點廠商</div>';
+  } else h += '<div class="muted">這個建案還沒有廠商，按下面「＋ 新增廠商」</div>';
+  if (ov.length) h += `<div style="margin-bottom:4px"><span class="muted">其他建案的廠商（選了會加入這個建案）</span><div class="chips">${ov.map(chip).join('')}</div></div>`;
+  const all = pv.length && pv.every(v => sel.includes(v.id));
+  return h + `<div class="chips" style="margin-top:4px">${multi && pv.length ? `<button class="chip add" onclick="multiAll(${all ? 0 : 1})">${all ? '全部取消' : `全選（${pv.length} 家）`}</button>` : ''}
+    ${!d._allV && otherVendors().length ? '<button class="chip add" onclick="draft._allV=true;render()">其他建案的廠商…</button>' : ''}
+    <button class="chip add" onclick="newVendor()">＋ 新增廠商</button></div>`;
+}
+// 點工項：打開（再點一次收起來）；只有一家廠商就直接選好
+function pickVT(k) {
+  draft._vt = draft._vt === k ? '' : k;
+  if (draft._vt) {
+    const g = projVendors().filter(v => !v.disabled && (vTrade(v) || '未設工項') === k);
+    if (g.length === 1) {
+      if (view.id) { if (draft.vid !== g[0].id) { pickVendor(g[0].id); return; } }
+      else if (!(draft.vids || []).includes(g[0].id)) { draft._vt = ''; togMulti(g[0].id); return; }
+    }
+  }
+  keepDraft(); render();
+}
+function togMulti(id) {
+  const a = draft.vids = draft.vids || [], i = a.indexOf(id);
+  if (i < 0) { a.push(id); joinProj(vendorOf(id)); } else a.splice(i, 1);
+  syncVids(); keepDraft(); render();
+}
+// 選的廠商 → 第一家當 vid；工項：都同一個工項就用它（常用缺失跟著出現），不同工項就用「其他」
+function syncVids() {
+  const vs = (draft.vids || []).map(vendorOf).filter(Boolean), ts = [...new Set(vs.map(vTrade).filter(Boolean))];
+  draft.vid = draft.vids[0] || '';
+  draft.trade = ts.length === 1 ? ts[0] : ts.length ? '其他' : '';
+  if (draft.trade) draft.cat = catOfTrade(draft.trade, vs[0]);
+}
+// 選了其他建案的廠商：先在手機上加入這個建案（上傳時後端也會自動加）
+function joinProj(v) {
+  if (!v || inProj(v, draft.pid)) return;
+  vEdit = clone(v); vEdit._base = (v.pids || []).slice(); vEdit.pids = vEdit._base.concat([draft.pid]); vEdit._fromDraft = true; vEdit._quiet = true;
+  saveVendor();
+}
+function multiAll(on) { draft.vids = on ? projVendors().filter(v => !v.disabled).map(v => v.id) : []; syncVids(); keepDraft(); render(); }
+// 選廠商：工項跟著廠商（缺失說明就出現這個工項的常用語）；再點一次取消
+function pickVendor(id) {
+  if (draft.vid === id) { draft.vid = ''; keepDraft(); render(); return; }
+  const v = vendorOf(id);
+  draft.vid = id; draft._vt = '';   // 選好就收起來，畫面比較短
+  if (v && vTrade(v)) { draft.trade = vTrade(v); draft.cat = catOfTrade(draft.trade, v); }
+  joinProj(v);
+  keepDraft(); render();
+}
+function addPhrase(t) {
+  const el = $('noteT');
+  draft.note = (draft.note ? draft.note.replace(/[，、\s]*$/, '') + '、' : '') + t;
+  keepDraft();
+  if (el) el.value = draft.note;   // 不 focus：點常用語不要跳出鍵盤
+}
+function setDue(n) { draft.due = addDays(n); draft.dueN = n; keepDraft(); render(); }
+async function saveDraft(withLine) {
+  const d = draft;
+  d.note = d.note.trim();
+  if (!d.photos.length && !d.note) { toast('請拍照或寫缺失說明'); return; }
+  if (!d.due) { toast('請選改善期限'); return; }
+  const isNew = !view.id;
+  const multi = isNew;
+  let vids = multi ? (d.vids || []).filter(id => vendorOf(id)) : [d.vid];
+  if (!vids.length) vids = [''];   // 還沒選廠商也可以先存
+  if (withLine && !vids[0]) { toast('請先選廠商'); return; }
+  const newPh = d.photos.filter(id => !(d._orig || []).includes(id));
+  const out = clone(d); delete out._orig; delete out.dueN; delete out._other; delete out._allV; delete out._multi; delete out.vids; delete out._t; delete out._vt;
+  if (isNew) { out.v = 0; out.by = auth.me.name; out.byUser = auth.me.user; out.created = ''; }
+  else { const old = state.defects[d.id]; if (!old) { toast('這筆缺失已被刪除'); return; } SERVER_KEYS.forEach(k => { out[k] = old[k]; }); out.v = old.v; out.reviews = old.reviews; out.status = old.status; }
+  // 派給好幾家：每家各開一張單（同一組 grp、共用照片）
+  const outs = vids.map((vid, i) => {
+    const o = Object.assign(clone(out), { id: i ? uid() : out.id, vid, grp: vids.length > 1 ? out.id : (out.grp || '') }), v = vendorOf(vid);
+    if (multi && v && vTrade(v)) { o.trade = vTrade(v); o.cat = catOfTrade(o.trade, v); }   // 每家用自己的工項
+    if (!CATS.includes(o.cat)) o.cat = catOfTrade(o.trade, v);
+    return o;
+  });
+  outs.forEach(o => saveD(o, newPh));
+  if (isNew) {
+    localStorage.removeItem(LS('dfi_draft'));
+    localStorage.setItem(LS('dfi_last'), JSON.stringify({ pid: d.pid, cat: d.cat, bldg: d.bldg, floor: d.floor }));
+  }
+  draftDirty = false; draft = null;
+  // 存好就回到原本的畫面（新增：回總覽或剛剛的清單；修改：回缺失頁）
+  view = stack.pop() || { name: 'home' };
+  if (view.name === 'edit') view = { name: 'home' };
+  render(); scrollTo(0, 0);
+  toast(isNew ? (outs.length > 1 ? `已存檔，派給 ${outs.length} 家廠商` : '已存檔') : '已修改');
+  if (withLine) {
+    // 先上傳，廠商點連結才看得到；上傳完跳出按鈕（手機瀏覽器要「按一下」才能開 LINE）
+    sheet('<div class="empty">存檔中（傳到雲端拿編號）…</div>');
+    if (!await waitUploaded(outs.map(o => o.id))) { closeLayer(); toast('沒網路，先存在手機；有網路上傳後，到總覽按「傳 PDF 給廠商」'); return; }
+    notifyStart(outs.map(o => ({ vid: o.vid, ids: [o.id] })));
+  }
+}
+// ── 傳 PDF 給廠商（一家一份 PDF）→ 分享到 LINE → 記錄「已通知」 ─────
+let NQ = [];   // 要傳的：[{vid, ids, done}]
+function notifyStart(groups) { NQ = groups.filter(g => g.vid && g.ids.length).map(g => Object.assign({ done: false }, g)); notifySheet(); }
+function notifyVendor(vid) {
+  const ids = projDefects().filter(d => d.vid === vid && needNotice(d)).sort((a, b) => (a.no || 0) - (b.no || 0)).map(d => d.id);
+  if (!ids.length) { toast('這家廠商沒有未通知的缺失'); return; }
+  notifyStart([{ vid, ids }]);
+}
+function notifySheet() {
+  if (!NQ.length) { closeLayer(); return; }
+  if (NQ.length === 1 && !NQ[0].done) { notifyMake(0); return; }
+  sheet(`<h3>傳 PDF 給廠商</h3><div class="muted">一家一份，傳完回到這裡按下一家。</div>
+    ${NQ.map((g, i) => `<button class="btn ${g.done ? 'ghost' : 'line'} block" onclick="notifyMake(${i})">${g.done ? '✔ 已傳：' : '📄 傳給 '}${esc(vName(g.vid))}（${g.ids.length} 筆）</button>`).join('')}
+    <button class="btn ghost block" onclick="closeLayer()">${NQ.every(g => g.done) ? '完成' : '晚點再傳'}</button>`);
+}
+// PDF 在手機上畫（pdf.js）；手機裡沒有的照片才跟雲端拿
+async function localPdf(ids, title) {
+  const ds = ids.map(id => state.defects[id]).filter(Boolean).sort((a, b) => (a.pid + String(a.no).padStart(6, '0')).localeCompare(b.pid + String(b.no).padStart(6, '0')));
+  if (!ds.length) throw new Error('沒有可以匯出的缺失');
+  if (ds.length > 40) throw new Error('一次最多 40 筆，請先篩選');
+  const all = [...new Set(ds.flatMap(d => (d.photos || []).slice(0, 6)))], miss = [];
+  for (const id of all) if (!await photoGet(id)) miss.push(id);
+  let lost = 0;
+  for (let k = 0; k < miss.length; k += 8) {
+    const ids = miss.slice(k, k + 8);
+    try { const r = await api('getPhotos', { ids }); for (const [id, data] of Object.entries(r.photos)) await photoPut(id, data); lost += ids.filter(id => !r.photos[id]).length; }
+    catch (e) { lost += miss.length - k; break; }
+  }
+  if (lost) toast(`有 ${lost} 張照片沒抓到（網路不穩？），PDF 裡會少這幾張`);
+  const bytes = await NoticePdf.make(ds, { projectName: id => (state.projects.find(p => p.id === id) || {}).name || '', vendorName: id => (vendorOf(id) || {}).name || '', photo: photoGet });
+  const t = new Date(), stamp = ymd(t).replace(/-/g, '') + '-' + String(t.getHours()).padStart(2, '0') + String(t.getMinutes()).padStart(2, '0');
+  const name = '缺失改善通知單_' + String(title || '').replace(/[\\/:*?"<>|]/g, '').slice(0, 20) + '_' + stamp + '.pdf';
+  return new File([bytes], name, { type: 'application/pdf' });
+}
+async function notifyMake(i) {
+  const g = NQ[i], v = vendorOf(g.vid);
+  if (g.ids.some(id => !state.defects[id] || !state.defects[id].v || isPending(id))) { toast('有缺失還沒上傳，上傳後再傳'); syncNow(); return; }
+  sheet(`<div class="empty">正在產生 ${esc(vName(g.vid))} 的 PDF（${g.ids.length} 筆）…</div>`);
+  try {
+    const file = await localPdf(g.ids, vName(g.vid)), r = { name: file.name };
+    const ds = g.ids.map(id => state.defects[id]), p = curP();
+    const lines = [`【缺失改善通知】${p ? p.name : ''}`, `${vName(g.vid)} 您好，共 ${ds.length} 筆，請於期限內改善：`]
+      .concat(ds.map(d => `${noticeOf(d) === 'stale' ? '（更新）' : ''}${noText(d)} ${locText(d)}｜${String(d.note || '').split('\n')[0].slice(0, 20)}｜期限 ${md(d.due)}`));
+    lines.push('', '改善完成請通知工地複查，謝謝。');
+    lastExport = { file, url: URL.createObjectURL(file), name: r.name, text: lines.join('\n'), ids: g.ids, qi: i };
+    const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    sheet(`<h3>📄 ${esc(vName(g.vid))} 的 PDF 做好了（${g.ids.length} 筆）</h3>
+      ${canFile ? `<button class="btn line block" onclick="notifyShare()">傳到 LINE（PDF 檔）</button><div class="muted">選 LINE → 選 ${esc(vName(g.vid))} 的聊天室。傳出去後會自動記錄「已通知」。</div>`
+        : `<a class="btn line block" href="${lastExport.url}" download="${esc(r.name)}">下載 PDF 檔（再自己傳給廠商）</a><div class="muted">這台裝置不能直接分享檔案（電腦、或在 LINE 裡打開 App 時會這樣），請下載後在 LINE 用「檔案」傳。</div>`}
+      <button class="btn ghost block" onclick="notifyDone()">我已經傳了，標記「已通知」</button>
+      ${canFile ? `<a class="btn ghost block" href="${lastExport.url}" download="${esc(r.name)}">先看／存 PDF</a>` : ''}
+      <button class="btn ghost block" onclick="notifySheet()">先不要</button>`);
+  } catch (e) { toast(e.message); notifySheet(); }
+}
+async function notifyShare() {
+  try { await navigator.share({ files: [lastExport.file], text: lastExport.text }); }
+  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請按「先看／存 PDF」存下來再傳'); return; }
+  notifyDone();
+}
+function notifyDone() {
+  const ex = lastExport, at = new Date();
+  // 畫面先標「已通知」，不用等雲端（約 2 秒）
+  ex.ids.forEach(id => { const d = state.defects[id]; if (d) { d.sent = { at: ymd(at) + ' ' + at.toTimeString().slice(0, 5), by: auth.me.name }; d.ns = 'sent'; } });
+  if (NQ[ex.qi]) NQ[ex.qi].done = true;
+  toast('已記錄：已通知廠商');
+  render(true);
+  if (NQ.length > 1 && NQ.some(g => !g.done)) notifySheet(); else closeLayer();
+  api('markSent', { ids: ex.ids })
+    .then(r => {
+      r.defects.forEach(d => { if (!isPending(d.id)) state.defects[d.id] = d; });
+      if (pulling) pullAgain = true;   // 同時在讀的資料可能是記之前的，讀完再讀一次
+      persistNow(); render(true);
+    })
+    .catch(e => { toast('沒記到「已通知」，請再按一次：' + e.message); pull(true); });
+}
+// 傳 LINE 的按鈕（好幾家就一家一個按鈕，傳完一家回來按下一家）
+function lineSheet(ids) {
+  sheet(`<h3>已上傳，傳 LINE 給廠商</h3>${ids.length > 1 ? '<div class="muted">每家廠商各按一次，傳完回到這裡按下一家。</div>' : ''}
+    ${ids.map(id => { const d = state.defects[id]; return `<button class="btn line block" id="ln-${id}" onclick="sendLine('${id}');this.textContent=${jsq('✔ 已開啟 LINE：' + vName(d.vid))};this.classList.add('ghost')">${ids.length > 1 ? noText(d) + ' ' : ''}傳給 ${esc(vName(d.vid))}</button>`; }).join('')}
+    <button class="btn ghost block" onclick="closeLayer()">${ids.length > 1 ? '完成' : '先不要'}</button>`);
+}
+// 在填缺失時新增廠商
+function newVendor() { editVendor(null); vEdit._fromDraft = true; }
+
+// ── 缺失清單 ─────────────────────────────
+const LF = { st: 'open', vid: null, q: '' };
+VIEWS.list = () => {
+  const p = curP();
+  hdr(p ? p.name + ' ▾' : '缺失清單', { pick: true });
+  if (view.st) { LF.st = view.st; delete view.st; }
+  if (view.vid !== undefined) { LF.vid = view.vid; delete view.vid; }
+  let ds = projDefects();
+  if (LF.vid !== null) ds = ds.filter(d => (d.vid || '') === LF.vid);
+  ds = ds.filter({ open: d => OPEN(d.status), late: isLate, all: () => true }[LF.st] || (d => d.status === LF.st));
+  if (LF.q) { const q = LF.q.toLowerCase(); ds = ds.filter(d => [noText(d), locText(d), d.note, d.req, d.trade, vName(d.vid)].join(' ').toLowerCase().includes(q)); }
+  ds.sort((a, b) => LF.st === 'done' ? String(b.at || '').localeCompare(String(a.at || '')) : (isLate(b) - isLate(a)) || a.due.localeCompare(b.due) || (a.no || 1e9) - (b.no || 1e9));
+  const stOpts = [['open', '未結案'], ['late', '逾期'], ['wait', '待改善'], ['doing', '改善中'], ['check', '待複查'], ['done', '已結案'], ['all', '全部']];
+  const vs = [...new Set(projDefects().map(d => d.vid || ''))];
+  return `<div class="chips" style="margin-bottom:8px">${stOpts.map(([k, n]) => `<button class="chip ${LF.st === k ? 'on' : ''}" onclick="LF.st='${k}';render()">${n}</button>`).join('')}</div>
+    <div class="row" style="margin-bottom:10px"><select style="flex:1" onchange="LF.vid=this.value==='*'?null:this.value;render()">
+      <option value="*">全部廠商</option>${vs.map(id => `<option value="${id}" ${LF.vid === id ? 'selected' : ''}>${esc(vName(id))}</option>`).join('')}</select>
+      <input type="search" style="flex:1" placeholder="🔍 搜尋" value="${esc(LF.q)}" onchange="LF.q=this.value;render()"></div>
+    ${LF.vid ? `<div class="row" style="margin-bottom:8px"><b class="grow">🏢 ${esc(vName(LF.vid))}</b><button class="btn ghost small" onclick="go({name:'vendor',id:'${LF.vid}'})">廠商頁 ›</button></div>
+      ${(() => { const un = projDefects().filter(d => d.vid === LF.vid && needNotice(d)).length; return un ? `<button class="btn line block" style="margin:0 0 10px" onclick="notifyVendor('${LF.vid}')">📄 傳 PDF 給廠商（未通知 ${un} 筆）</button>` : ''; })()}` : ''}
+    <div class="row" style="margin-bottom:6px"><span class="muted grow">共 ${ds.length} 件</span>${ds.length ? `<button class="btn ghost small" onclick="exportShare('pdf',${esc(JSON.stringify(ds.slice(0, 40).map(d => d.id)))},${jsq(LF.vid ? vName(LF.vid) : (p ? p.name : ''))})">📄 PDF</button> <button class="btn ghost small" onclick="exportShare('xlsx',${esc(JSON.stringify(ds.slice(0, 40).map(d => d.id)))},${jsq(LF.vid ? vName(LF.vid) : (p ? p.name : ''))})">📊 Excel</button>` : ''}</div>
+    ${ds.length ? ds.map(itemHTML).join('') : '<div class="empty">沒有符合的缺失</div>'}`;
+};
+
+// ── 複查 ─────────────────────────────
+VIEWS.review = () => {
+  const p = curP();
+  hdr(p ? p.name + ' ▾' : '複查', { pick: true });
+  // 廠商不在系統回報了：全部未結案都在這裡，到現場看改好了沒（舊資料的「待複查」排最前面）
+  const ds = projDefects().filter(d => OPEN(d.status)).sort((a, b) => ((b.status === 'check') - (a.status === 'check')) || a.due.localeCompare(b.due) || (a.no || 0) - (b.no || 0));
+  return `<div class="muted" style="margin-bottom:8px">到現場看廠商改好了沒，點進去按「合格結案」或「退回重做」。期限早的排前面。</div>
+    ${ds.length ? ds.map(itemHTML).join('') : '<div class="empty">目前沒有要複查的缺失 👍</div>'}`;
+};
+
+// ── 缺失詳細 ─────────────────────────────
+let rv = null;   // 複查暫存
+VIEWS.detail = () => {
+  const d = state.defects[view.id];
+  if (!d) { hdr('缺失'); return '<div class="empty">找不到這筆缺失（可能已被刪除）</div>'; }
+  hdr('缺失 ' + noText(d));
+  const v = vendorOf(d.vid), done = d.status === 'done';
+  const canEdit = !done || isAdmin();
+  const canDel = isAdmin() || (d.byUser === auth.me.user && d.status === 'wait' && !(d.fixes || []).length && !(d.reviews || []).length);
+  photoLists['d-' + d.id] = { get: () => d.photos, editable: false };
+  if (!rv || rv.id !== d.id) rv = { id: d.id, ok: null, note: '', photos: [], due: addDays(7), dueN: 7 };
+  photoLists.rv = { get: () => rv.photos, editable: true, changed: render };
+  photoTargets.rv = id => { rv.photos.push(id); render(); };
+  const subs = [];
+  (d.fixes || []).forEach((f, i) => subs.push({ k: 'fix', i, html: `<div class="sub fix"><b>廠商回報改善完成</b>　<span class="muted">${esc(f.at)}</span>${f.note ? `<div>${esc(f.note)}</div>` : ''}<div class="photos">${f.photos.map(phView).join('')}</div></div>` }));
+  (d.reviews || []).forEach((r, i) => subs.push({ k: 'rv', i, html: `<div class="sub ${r.ok ? 'ok' : 'ng'}"><b>${r.ok ? '複查合格 ✔' : '複查不合格，退回'}</b>　<span class="muted">${esc(r.by || '')} ${esc(r.at || '（未上傳）')}</span>${!r.ok && r.due ? `<div>新期限：${md(r.due)}</div>` : ''}${r.note ? `<div>${esc(r.note)}</div>` : ''}<div class="photos">${(r.photos || []).map(phView).join('')}</div></div>` }));
+  // 依處理紀錄的先後排（時間只到分鐘，同一分鐘會排錯）
+  const order = { fix: [], rv: [] };
+  (d.log || []).forEach((l, i) => { if (l.msg === '廠商回報改善完成') order.fix.push(i); else if (l.msg.startsWith('複查')) order.rv.push(i); });
+  subs.forEach(s => { const o = order[s.k][s.i]; s.at = o === undefined ? 1e9 + s.i : o; });
+  subs.sort((a, b) => a.at - b.at);
+  return `<div class="card">
+    <div class="row wrap" style="margin-bottom:6px">${stTag(d)}${tradeTag(d.trade)}${isPending(d.id) ? '<span class="tag pend">未上傳</span>' : ''}</div>
+    <div class="photos">${photoRow(d.photos, 'd-' + d.id, false)}</div>
+    <table class="kv" style="margin-top:8px">
+      <tr><th>位置</th><td>${esc(locText(d)) || '—'}</td></tr>
+      <tr><th>工項</th><td>${esc(d.trade || '—')}</td></tr>
+      <tr><th>廠商</th><td>${v ? `<a href="javascript:go({name:'vendor',id:'${v.id}'})">${esc(v.name)}</a>${v.phone ? `　<a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a>` : ''}` : '（未指定）'}</td></tr>
+      <tr><th>缺失說明</th><td style="white-space:pre-wrap">${esc(d.note) || '—'}</td></tr>
+      ${d.req ? `<tr><th>改善要求</th><td style="white-space:pre-wrap">${esc(d.req)}</td></tr>` : ''}
+      <tr><th>改善期限</th><td>${dueText(d, true)}</td></tr>
+      <tr><th>開單</th><td>${esc(d.by || '')} ${esc(d.created || '')}</td></tr>
+      ${noticeOf(d) ? `<tr><th>通知廠商</th><td>${noticeOf(d) === 'sent' ? `✔ 已傳 PDF ${esc(d.sent.at)}（${esc(d.sent.by)}）` : noticeOf(d) === 'stale' ? `<span style="color:#e8590c;font-weight:bold">內容有更新，還沒通知</span><div class="muted">上次傳：${esc(d.sent.at)}</div>` : '<span style="color:#e8590c;font-weight:bold">還沒通知廠商</span>'}</td></tr>` : ''}
+    </table></div>
+  ${groupHTML(d)}
+  ${subs.map(s => s.html).join('')}
+  <div class="card">
+    ${d.vid && OPEN(d.status) ? `<button class="btn line block" onclick="notifyStart([{vid:'${d.vid}',ids:['${d.id}']}])">📄 傳 PDF 給廠商${noticeOf(d) === 'sent' ? '（再傳一次）' : ''}</button>` : ''}
+    ${d.vid ? `<button class="btn ghost block" onclick="sendLine('${d.id}')">💬 傳 LINE 文字訊息</button>` : ''}
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost grow" onclick="exportShare('pdf',['${d.id}'],${jsq(vName(d.vid))})">📄 PDF</button>
+      ${d.vid ? `<button class="btn ghost grow" onclick="copyMsg('${d.id}')">📋 複製訊息</button>` : ''}
+      ${canEdit ? `<button class="btn ghost grow" onclick="startDraft('${d.id}');go({name:'edit',id:'${d.id}'})">✏️ 修改</button>` : ''}
+    </div></div>
+  ${!done ? `<div class="card"><h3>複查</h3>
+    <div class="chips"><button class="chip ${rv.ok === true ? 'on' : ''}" onclick="rv.ok=true;render()">✔ 合格，結案</button><button class="chip ${rv.ok === false ? 'on' : ''}" onclick="rv.ok=false;render()">✘ 不合格，退回重做</button></div>
+    ${rv.ok === null ? '' : `
+    ${rv.ok === false ? `<label class="f">新的改善期限</label><div class="chips">${[3, 7, 14].map(n => `<button class="chip ${rv.dueN === n ? 'on' : ''}" onclick="rv.due=addDays(${n});rv.dueN=${n};render()">${n} 天</button>`).join('')}<input type="date" style="width:auto;padding:5px 8px;font-size:15px" value="${rv.due}" onchange="rv.due=this.value;rv.dueN=0;render()"></div>` : ''}
+    <label class="f">${rv.ok ? '備註（可不填）' : '不合格的原因'}</label><textarea oninput="rv.note=this.value">${esc(rv.note)}</textarea>
+    <label class="f">複查照片（可不拍）</label><div class="photos">${photoRow(rv.photos, 'rv', true)}${rv.photos.length < 12 ? photoAdders('rv') : ''}</div>
+    <button class="btn ${rv.ok ? 'ok' : 'ng'} block" onclick="submitReview()">${rv.ok ? '確認合格結案' : '確認退回'}</button>`}
+  </div>` : ''}
+  ${done && isAdmin() ? `<button class="btn ghost block" onclick="reopen('${d.id}')">重新開啟（後台）</button>` : ''}
+  <div class="card"><h3>處理紀錄</h3><div class="log">${(d.log || []).map(l => `<div><span>${esc(l.at)}</span>${esc(l.msg)}${l.who ? `（${esc(l.who)}）` : ''}</div>`).join('') || '<span>還沒上傳</span>'}</div></div>
+  ${canDel ? `<button class="btn ghost block" style="color:var(--wait)" onclick="delDefect('${d.id}')">刪除這筆缺失</button>` : ''}`;
+};
+function groupHTML(d) {
+  if (!d.grp) return '';
+  const sib = Object.values(state.defects).filter(x => x.grp === d.grp && x.id !== d.id).sort((a, b) => (a.no || 1e9) - (b.no || 1e9));
+  if (!sib.length) return '';
+  return `<div class="card"><h3>同一缺失也派給</h3>${sib.map(x => `<div class="user-row" onclick="go({name:'detail',id:'${x.id}'})"><span class="grow">${noText(x)}　${esc(vName(x.vid))}</span>${stTag(x)}</div>`).join('')}
+    <button class="btn line block" onclick="lineSheet(${esc(JSON.stringify([d.id].concat(sib.map(x => x.id))))}.filter(id=>checkSendable(id)))">傳 LINE 給這幾家</button></div>`;
+}
+function submitReview() {
+  const d = clone(state.defects[rv.id]);
+  if (!rv.ok && !rv.note.trim()) { toast('請寫不合格的原因'); return; }
+  d.reviews = (d.reviews || []).concat([{ ok: rv.ok, note: rv.note.trim(), photos: rv.photos.slice(), due: rv.ok ? '' : rv.due }]);
+  d.status = rv.ok ? 'done' : 'wait';
+  if (!rv.ok) d.due = rv.due;
+  saveD(d, rv.photos);
+  toast(rv.ok ? '已結案' : '已退回，記得通知廠商');
+  rv = null; render();
+}
+function reopen(id) {
+  if (!confirm('重新開啟這筆缺失（改回待改善）？')) return;
+  const d = clone(state.defects[id]); d.status = 'wait'; saveD(d); render();
+}
+function delDefect(id) {
+  if (!confirm('確定刪除這筆缺失？照片也會一起刪掉。')) return;
+  const d = state.defects[id];
+  delete state.defects[id];
+  if (d.v) outbox.del.push(id);
+  else {
+    // 還沒上傳就刪：照片也不用傳了（同一組其他單還在用的照樣要傳）
+    const used = new Set(Object.values(state.defects).flatMap(x => x.photos || []));
+    outbox.ph = outbox.ph.filter(p => !d.photos.includes(p) || used.has(p));
+  }
+  delete outbox.d[id];
+  persist(); goBack();
+}
+
+// ── LINE 通知 ─────────────────────────────
+function lineMsg(d) {
+  const v = vendorOf(d.vid), p = state.projects.find(x => x.id === d.pid);
+  const back = (d.reviews || []).slice(-1)[0];
+  const n = daysBetween(today(), d.due);
+  return [`【缺失改善通知】${noText(d)}`,
+    `${p ? p.name : ''}｜${locText(d)}`,
+    `工項：${d.cat}${d.trade ? '／' + d.trade : ''}`,
+    `缺失：${d.note || '（見照片）'}`,
+    d.req ? `要求：${d.req}` : null,
+    back && !back.ok && d.status === 'wait' ? `⚠ 複查不合格：${back.note}` : null,
+    `期限：${md(d.due)}${n >= 0 ? `（${n} 天內）` : '（已逾期）'}`,
+    d.photos.length ? `📷 照片 ${d.photos.length} 張（見 PDF）` : null,
+    '', '改善完成請通知工地複查，謝謝。'].filter(s => s !== null).join('\n');
+}
+function checkSendable(id) {
+  const d = state.defects[id], v = d && vendorOf(d.vid);
+  if (!v) { toast('請先選廠商'); return null; }
+  if (v.disabled) { toast('這個廠商已停用'); return null; }
+  if (!d.v || isPending(id)) { toast('還沒上傳（可能沒網路），上傳後再傳給廠商'); syncNow(); return null; }
+  return d;
+}
+function openLine(text) { window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank'); }
+function sendLine(id) { const d = checkSendable(id); if (d) openLine(lineMsg(d)); }
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('已複製，可貼到 LINE'); }
+  catch (e) { prompt('複製下面的文字：', t); }
+}
+function copyMsg(id) { const d = checkSendable(id); if (d) copyText(lineMsg(d)); }
+
+// ── PDF／Excel：產生檔案 → 直接分享檔案到 LINE，或下載（不傳網頁連結）─────
+let lastExport = null;
+async function exportShare(kind, ids, title) {
+  const pend = ids.filter(id => !state.defects[id] || !state.defects[id].v || isPending(id));
+  if (pend.length) { toast('有缺失還沒上傳，上傳後再匯出'); syncNow(); return; }
+  if (ids.length > 40) { toast('一次最多 40 筆，請先篩選'); return; }
+  sheet(`<div class="empty">正在產生 ${kind === 'pdf' ? 'PDF' : 'Excel'}（${ids.length} 筆）…</div>`);
+  try {
+    let file;
+    if (kind === 'pdf') file = await localPdf(ids, title);
+    else {
+      const r = await api('exportFile', { kind, ids, title, withData: true });
+      const bin = atob(r.data), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      file = new File([u8], r.name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+    const r = { name: file.name };
+    const lines = [`【缺失改善${kind === 'pdf' ? '通知單' : '清單'}】${title || ''}`, `共 ${ids.length} 筆，請查收`];
+    lastExport = { file, url: URL.createObjectURL(file), name: r.name, text: lines.join('\n') };
+    const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    sheet(`<h3>${kind === 'pdf' ? '📄 PDF' : '📊 Excel'} 做好了</h3><div class="muted" style="word-break:break-all">${esc(r.name)}</div>
+      ${canFile ? '<button class="btn line block" onclick="shareFile()">傳到 LINE（附檔案）</button><div class="muted">按了會跳出分享，選 LINE → 選廠商的聊天室。</div>' : ''}
+      <a class="btn ${canFile ? 'ghost' : ''} block" href="${lastExport.url}" download="${esc(r.name)}">下載／列印</a>
+      <button class="btn ghost block" onclick="closeLayer()">關閉</button>
+`);
+  } catch (e) { closeLayer(); toast(e.message); }
+}
+async function shareFile() {
+  try { await navigator.share({ files: [lastExport.file], text: lastExport.text }); }
+  catch (e) { if (e.name !== 'AbortError') toast('這支手機不能直接分享檔案，請按「下載／列印」存下來再傳'); }
+}
+
+// ── 通知單（列印／存 PDF）─────────────────────
+VIEWS.notice = () => {
+  hdr('缺失改善通知單');
+  const ds = (view.ids || []).map(id => state.defects[id]).filter(Boolean);
+  return `<div class="noprint row" style="margin-bottom:12px"><button class="btn grow" onclick="print()">🖨 列印／存 PDF</button><button class="btn ghost" onclick="goBack()">返回</button></div>
+    ${ds.map(noticeHTML).join('') || '<div class="empty">沒有缺失</div>'}`;
+};
+function noticeHTML(d) {
+  const v = vendorOf(d.vid), p = state.projects.find(x => x.id === d.pid), fix = (d.fixes || []).slice(-1)[0];
+  const back = (d.reviews || []).filter(r => !r.ok).slice(-1)[0];
+  const roc = s => s ? (Number(s.slice(0, 4)) - 1911) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10) : '';
+  const lastRv = (d.reviews || []).slice(-1)[0];
+  return `<div class="notice"><h2>缺失改善通知單</h2>
+    <div class="no">${esc(p ? p.name : '')}　　編號：${noText(d).replace('#', 'No. ')}</div>
+    <table>
+      <tr><th>受通知廠商</th><td>${esc(v ? v.name : '')}${v && v.trades.length ? '（' + esc(v.trades.join('、')) + '）' : ''}</td><th>發單日期</th><td>${roc((d.created || today()).slice(0, 10))}</td></tr>
+      <tr><th>缺失分類</th><td>${esc(d.cat)}${d.trade ? '／' + esc(d.trade) : ''}</td><th>改善期限</th><td><b>${roc(d.due)}</b></td></tr>
+      <tr><th>位置</th><td colspan="3">${esc(locText(d))}</td></tr>
+      <tr><th>缺失說明</th><td colspan="3" style="white-space:pre-wrap">${esc(d.note)}</td></tr>
+      <tr><th>改善要求</th><td colspan="3" style="white-space:pre-wrap">${esc(d.req || '請依規範改善，完成後拍照回報，經工地複查合格始得結案。')}</td></tr>
+      ${back ? `<tr><th>複查不合格</th><td colspan="3">${esc(back.note)}（${esc((back.at || '').slice(0, 10))}）</td></tr>` : ''}
+      <tr><th>缺失照片</th><td colspan="3"><div class="pics">${d.photos.map(imgTag).join('') || '—'}</div></td></tr>
+      <tr><th>改善後照片</th><td colspan="3">${fix ? `<div class="pics">${fix.photos.map(imgTag).join('')}</div>${fix.note ? `<div>${esc(fix.note)}</div>` : ''}` : '<div style="height:60px"></div>'}</td></tr>
+    </table>
+    <table class="sign" style="margin-top:10px"><tr><th>開單人</th><th>廠商簽收</th><th>複查人</th><th>結案日期</th></tr>
+      <tr><td>${esc(d.by || '')}</td><td></td><td>${lastRv && lastRv.ok ? esc(lastRv.by || '') : ''}</td><td>${d.status === 'done' && lastRv ? roc((lastRv.at || '').slice(0, 10)) : ''}</td></tr></table>
+    <div class="foot">※ 逾期未改善者，依合約規定辦理。　※ 本單一式兩聯，一聯廠商留存。</div></div>`;
+}
+
+// ── 廠商 ─────────────────────────────
+VIEWS.vendors = () => {
+  const p = curP();
+  hdr(p ? p.name + ' ▾' : '廠商', { pick: true, right: ['＋ 新增', () => editVendor(null)] });
+  if (!p) return '<div class="card">請先新增／選擇建案。</div>';
+  const ds = projDefects();
+  const list = projVendors().filter(v => !v.disabled || isAdmin());
+  const others = otherVendors();
+  const byT = {};
+  list.forEach(v => { const k = vTrade(v) || '未設工項'; (byT[k] = byT[k] || []).push(v); });
+  const keys = allTrades().concat(Object.keys(byT)).filter((k, i, a) => byT[k] && a.indexOf(k) === i);
+  return (keys.length ? '' : '<div class="card"><div class="muted">這個建案還沒有廠商</div></div>') + keys.map(c => {
+    const vs = byT[c];
+    return `<div class="card"><h3>${esc(c)}</h3>${vs.length ? vs.map(v => {
+      const open = ds.filter(d => d.vid === v.id && OPEN(d.status)), late = open.filter(isLate).length;
+      return `<div class="user-row" onclick="go({name:'vendor',id:'${v.id}'})"><div class="grow"><b>${esc(v.name)}</b>${v.disabled ? ' <span class="tag pend">停用</span>' : ''}
+        <div class="muted">${esc(v.trades.join('、') || '—')}</div></div><div style="text-align:right;font-size:14px">${open.length ? `未結案 ${open.length}` : '<span class="muted">無</span>'}${late ? `<br><span class="red">逾期 ${late}</span>` : ''}</div>
+        <button class="btn ghost small" style="margin-left:8px" onclick="event.stopPropagation();editVendor('${v.id}')">✏️ 修改</button></div>`;
+    }).join('') : '<div class="muted">這個建案還沒有廠商</div>'}</div>`;
+  }).join('') + `<button class="btn block" onclick="editVendor(null)">＋ 新增廠商</button>
+    ${others.length ? `<button class="btn ghost block" onclick="vEdit=null;pickOtherVendor()">從其他建案加入現有廠商（${others.length} 家）</button>` : ''}`;
+};
+VIEWS.vendor = () => {
+  const v = vendorOf(view.id);
+  if (!v) { hdr('廠商'); return '<div class="empty">找不到廠商</div>'; }
+  hdr(v.name, { right: ['修改', () => editVendor(v.id)] });
+  const ds = projDefects().filter(d => d.vid === v.id);
+  const open = ds.filter(d => OPEN(d.status)).sort((a, b) => (isLate(b) - isLate(a)) || a.due.localeCompare(b.due));
+  const p = curP();
+  return `<div class="card"><table class="kv">
+      <tr><th>工項</th><td>${esc(v.trades.join('、') || '—')}${v.disabled ? ' <span class="tag pend">停用</span>' : ''}</td></tr>
+      <tr><th>建案</th><td>${esc(state.projects.filter(x => inProj(v, x.id)).map(x => x.name).join('、') || '（沒有加入建案）')}</td></tr>
+      ${v.contact ? `<tr><th>聯絡人</th><td>${esc(v.contact)}</td></tr>` : ''}
+      ${v.phone ? `<tr><th>電話</th><td><a href="tel:${esc(v.phone)}">📞 ${esc(v.phone)}</a></td></tr>` : ''}</table>
+      <div class="row" style="margin-top:10px"><button class="btn ghost grow" onclick="editVendor('${v.id}')">✏️ 修改資料</button><button class="btn ghost grow" style="color:#c92a2a" onclick="delVendor('${v.id}')">🗑 刪除</button></div></div>
+    <div class="card"><h3>${esc(p ? p.name : '')}：未結案 ${open.length} 件</h3>
+      ${(() => { const un = open.filter(needNotice).length; return un ? `<button class="btn line block" style="margin-bottom:8px" onclick="notifyVendor('${v.id}')">📄 傳 PDF 給廠商（未通知 ${un} 筆）</button>` : ''; })()}
+      ${open.length ? `<button class="btn ghost block" style="margin-bottom:8px" onclick="sendVendorList('${v.id}')">💬 傳 LINE 文字清單</button>` : ''}
+      ${open.length ? `<div class="row" style="margin-bottom:10px"><button class="btn ghost grow" onclick="exportShare('pdf',${esc(JSON.stringify(open.map(d => d.id)))},${jsq(v.name)})">📄 PDF 通知單</button><button class="btn ghost grow" onclick="exportShare('xlsx',${esc(JSON.stringify(open.map(d => d.id)))},${jsq(v.name)})">📊 Excel 清單</button></div>` : ''}
+      ${open.map(itemHTML).join('') || '<div class="muted">沒有未結案的缺失</div>'}
+      ${ds.length > open.length ? `<button class="btn ghost block" onclick="go({name:'list',vid:'${v.id}',st:'done'})">看已結案（${ds.length - open.length} 件）</button>` : ''}</div>`;
+};
+function sendVendorList(vid) {
+  const v = vendorOf(vid), p = curP();
+  const open = projDefects().filter(d => d.vid === vid && OPEN(d.status) && d.status !== 'check').sort((a, b) => a.due.localeCompare(b.due));
+  const lines = open.map(d => `${noText(d)} ${locText(d)}｜${d.note.split('\n')[0].slice(0, 20)}｜期限 ${md(d.due)}${isLate(d) ? '（已逾期）' : ''}`);
+  openLine([`【${v.name} 缺失改善清單】`, `${p ? p.name : ''}　待改善 ${open.length} 件`, ...lines, '', '改善完成請通知工地複查，謝謝。'].join('\n'));
+}
+let vEdit = null;
+function editVendor(id, cat, trade) {
+  const v = id ? vendorOf(id) : null;
+  const p = curP();
+  vEdit = v ? clone(v) : { id: uid(), name: '', cats: [], trades: trade ? [trade] : [], contact: '', phone: '', disabled: false, pids: p ? [p.id] : [], _new: true, _fromDraft: !!cat };
+  if (!vEdit.pids) vEdit.pids = [];
+  vEdit.cats = vCats(vEdit).slice();
+  vEdit._base = v ? (v.pids || []).slice() : null;
+  drawVendorSheet();
+}
+function drawVendorSheet() {
+  const v = vEdit, all = [...new Set(allTrades().concat(v.trades))];
+  const ps = state.projects.filter(p => !p.disabled || v.pids.includes(p.id)), others = v._new ? otherVendors() : [];
+  sheet(`<h3>${v._new ? '新增廠商' : '修改廠商'}</h3>
+    ${others.length ? `<button class="btn ghost block" style="margin-bottom:6px" onclick="pickOtherVendor()">別的建案已經有這家？點這裡直接加入（${others.length} 家可選）</button>` : ''}
+    <label class="f">廠商名稱</label><input type="text" id="vn" value="${esc(v.name)}" oninput="vEdit.name=this.value">
+    <label class="f">工項（選一個）</label><div class="chips">${all.map(t => `<button class="chip ${v.trades.includes(t) ? 'on' : ''}" onclick="togTrade(${jsq(t)})">${esc(t)}</button>`).join('')}
+      <button class="chip add" onclick="const t=prompt('其他工項名稱');if(t&&t.trim()){vEdit.trades=[t.trim().slice(0,20)];drawVendorSheet()}">＋ 其他</button></div>
+    <label class="f">參與建案（可複選）</label><div class="chips">${ps.map(p => `<button class="chip ${v.pids.includes(p.id) ? 'on' : ''}" onclick="togPid('${p.id}')">${esc(p.name)}</button>`).join('')}</div>
+    <label class="f">聯絡人</label><input type="text" value="${esc(v.contact)}" oninput="vEdit.contact=this.value">
+    <label class="f">電話</label><input type="tel" value="${esc(v.phone)}" oninput="vEdit.phone=this.value">
+    ${!v._new && isAdmin() ? `<label style="display:block;margin-top:12px"><input type="checkbox" ${v.disabled ? 'checked' : ''} onchange="vEdit.disabled=this.checked"> 停用（不再出現在選單）</label>` : ''}
+    <button class="btn block" id="vSave" onclick="saveVendor()">儲存</button>
+    ${!v._new && view.name !== 'edit' ? `<button class="btn ghost block" style="color:#c92a2a" onclick="delVendor('${v.id}')">🗑 刪除這家廠商</button>` : ''}
+    <button class="btn ghost block" onclick="closeLayer();if(view.name==='edit')render()">取消</button>`);
+}
+function togPid(id) { const a = vEdit.pids, i = a.indexOf(id); if (i < 0) a.push(id); else a.splice(i, 1); drawVendorSheet(); }
+// 還沒加入目前建案的廠商
+function otherVendors() { const p = curP(); return p ? state.vendors.filter(v => !v.disabled && !inProj(v, p.id)) : []; }
+function pickOtherVendor() {
+  const p = curP(), vs = otherVendors(), fromDraft = !!(vEdit && vEdit._fromDraft);
+  sheet(`<h3>加入「${esc(p.name)}」</h3><div class="muted">點一家廠商就會加入這個建案，連結跟原本的一樣。</div>
+    ${allTrades().concat(['']).map(c => { const g = vs.filter(v => (vTrade(v) || '') === c); return g.length ? `<div class="group-h" style="margin-top:12px"><b>${esc(c || '未設工項')}</b></div>${g.map(v => `<div class="user-row" onclick="joinProject('${v.id}',${fromDraft})"><div class="grow"><b>${esc(v.name)}</b><div class="muted">${esc(v.trades.join('、') || '—')}｜${esc(state.projects.filter(x => inProj(v, x.id)).map(x => x.name).join('、') || '沒有建案')}</div></div>＋</div>`).join('')}` : ''; }).join('')}
+    <button class="btn ghost block" onclick="closeLayer();if(view.name==='edit')render()">取消</button>`);
+}
+function joinProject(id, fromDraft) {
+  vEdit = clone(vendorOf(id));
+  vEdit._base = (vEdit.pids || []).slice();
+  vEdit.pids = vEdit._base.concat([curP().id]);
+  vEdit._fromDraft = fromDraft;
+  saveVendor();
+}
+// 工項只選一個（再點一次取消）；分類可以複選，至少留一個
+function togTrade(t) { vEdit.trades = vEdit.trades.length === 1 && vEdit.trades[0] === t ? [] : [t]; drawVendorSheet(); }
+function togVCat(c) {
+  const a = vEdit.cats, i = a.indexOf(c);
+  if (i < 0) a.push(c); else if (a.length > 1) a.splice(i, 1); else { toast('至少要有一個分類'); return; }
+  drawVendorSheet();
+}
+async function saveVendor() {
+  const v = vEdit;
+  if (!v.name.trim()) { toast('請填廠商名稱'); return; }
+  v.cats = [catOfTrade(vTrade(v), v)];   // 分類不用選了，跟著工項（後端還要）
+  const b = $('vSave'); if (b) b.disabled = true;
+  try {
+    const r = await api('saveVendor', { vendor: { id: v.id, name: v.name.trim(), cat: v.cats[0], cats: v.cats, trades: v.trades, contact: v.contact, phone: v.phone, disabled: v.disabled, pids: v.pids || [], basePids: v._base || undefined } });
+    const i = state.vendors.findIndex(x => x.id === v.id);
+    if (i >= 0) state.vendors[i] = r.vendor; else state.vendors.push(r.vendor);
+    persistNow(); closeLayer();
+    if (v._fromDraft && draft && inProj(r.vendor, draft.pid)) {
+      // 開單時新建的廠商：分類跟著廠商；從全部廠商挑的：保留原本選的分類和工項
+      if (!view.id) { draft.vids = (draft.vids || []).filter(x => x !== v.id).concat([v.id]); syncVids(); }
+      else { draft.vid = v.id; if (vTrade(r.vendor)) { draft.trade = vTrade(r.vendor); draft.cat = catOfTrade(draft.trade, r.vendor); } }
+      keepDraft();
+    }
+    if (!v._quiet) toast('廠商已存');
+    render();
+  } catch (e) { if (!v._quiet) toast(e.message.includes('網路') ? '新增廠商要有網路' : e.message); if (b) b.disabled = false; }
+}
+// 刪除廠商：這個建案還有未結案 → 先改派；有缺失紀錄或在別的建案 → 只從這個建案移除；都沒有 → 整個刪掉
+async function delVendor(id) {
+  const v = vendorOf(id), p = curP();
+  if (!v) return;
+  const open = projDefects().filter(d => d.vid === id && OPEN(d.status)).length;
+  if (open) { toast(`「${v.name}」在這個建案還有 ${open} 筆未結案，先把缺失改派給別家再刪`); return; }
+  const used = Object.values(state.defects).some(d => d.vid === id);
+  const otherP = (v.pids || []).filter(x => !p || x !== p.id);
+  if (p && inProj(v, p.id) && (used || otherP.length)) {
+    if (!confirm(`把「${v.name}」從「${p.name}」移除？
+${otherP.length ? '其他建案還會用到這家，' : ''}舊的缺失紀錄會保留廠商名稱。`)) return;
+    vEdit = clone(v); vEdit._base = (v.pids || []).slice(); vEdit.pids = vEdit._base.filter(x => x !== p.id); vEdit._quiet = true;
+    await saveVendor();
+    toast('已從這個建案移除');
+  } else {
+    if (used) { toast(`「${v.name}」有缺失紀錄，不能整個刪除${isAdmin() ? '，可以在修改裡勾「停用」' : '，請後台停用'}`); return; }
+    if (!confirm(`刪除廠商「${v.name}」？刪了就不能復原。`)) return;
+    try { await api('deleteVendor', { id }); }
+    catch (e) { toast(e.message); return; }
+    state.vendors = state.vendors.filter(x => x.id !== id);
+    persistNow(); closeLayer(); toast('已刪除');
+  }
+  if (view.name === 'vendor' && view.id === id) goBack(); else render();
+}
+
+// ── 設定、建案、帳號 ─────────────────────────
+VIEWS.settings = () => {
+  hdr('設定');
+  if (SOLO) return `<div class="card"><h3>📱 單機使用：${esc(auth.me.name)}</h3>
+      <div class="muted">資料只存在這支手機。手機壞掉、換手機、刪掉 App 資料就沒了，<b>請常備份</b>。</div>
+      <button class="btn block" onclick="soloBackup()">📦 備份（存成一個檔案）</button>
+      <button class="btn ghost block" onclick="$('rsf').click()">♻️ 從備份檔還原</button>
+      <input type="file" id="rsf" accept=".json,application/json" style="display:none" onchange="soloRestore(this.files[0]);this.value=''">
+      <div class="muted">上次備份：${localStorage.getItem(LS('dfi_lastBackup')) ? esc(localStorage.getItem(LS('dfi_lastBackup')).slice(0, 16).replace('T', ' ')) : '還沒備份過'}</div></div>
+    <div class="card"><h3>管理</h3>
+      <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
+      <button class="btn ghost block" style="color:#c92a2a" onclick="resetData()">🧹 資料歸零</button></div>
+    <div class="ver">小棒槌 缺失改善系統 ${VERSION}（單機）</div>`;
+  return `<div class="card"><h3>${esc(auth.me.name)}</h3><div class="muted">帳號 ${esc(auth.me.user)}・${ROLE_NAME[auth.me.role]}</div>
+      <button class="btn ghost block" onclick="changePass()">改密碼</button>
+      <button class="btn ghost block" onclick="logout()">登出</button>
+</div>
+    ${isAdmin() ? `<div class="card"><h3>後台管理</h3>
+      <button class="btn ghost block" onclick="go({name:'projects'})">🏗 建案管理</button>
+      <button class="btn ghost block" onclick="go({name:'users'})">👤 帳號管理</button>
+      <button class="btn ghost block" style="color:#c92a2a" onclick="resetData()">🧹 測試資料歸零</button></div>` : ''}
+    <div class="card"><h3>資料</h3><div class="muted">還沒上傳：${pendingCount()} 筆　${syncErr ? '（' + esc(syncErr) + '）' : ''}</div>
+      <button class="btn ghost block" onclick="syncNow().then(()=>pull())">立即同步</button></div>
+    <div class="ver">小棒槌 缺失改善系統 ${VERSION}${LOCAL ? '<br>後端：' + esc(API) : ''}</div>`;
+};
+function changePass() {
+  sheet(`<h3>改密碼</h3><label class="f">舊密碼</label><input type="password" id="po"><label class="f">新密碼（至少 6 個字）</label><input type="password" id="pn">
+    <button class="btn block" onclick="doChangePass(this)">確定</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function doChangePass(b) {
+  b.disabled = true;
+  try { setAuth(await api('changePass', { old: $('po').value, pass: $('pn').value })); closeLayer(); toast('密碼已更改'); }
+  catch (e) { toast(e.message); b.disabled = false; }
+}
+VIEWS.projects = () => {
+  hdr('建案管理', { right: ['＋ 新增', () => editProject(null)] });
+  return `<div class="card">${state.projects.map(p => `<div class="user-row" onclick="editProject('${p.id}')"><b class="grow">${esc(p.name)}</b>${p.disabled ? '<span class="tag pend">停用</span>' : ''}<span class="muted">${Object.values(state.defects).filter(d => d.pid === p.id).length} 件</span></div>`).join('') || '<div class="muted">還沒有建案</div>'}</div>
+    <button class="btn block" onclick="editProject(null)">＋ 新增建案</button>`;
+};
+// 建案的位置規劃（開單時「位置」都用點的，不用打字）
+const LOC_DEF = { b: 1, n: 5, r: 1, bldgs: [], floorsX: [],
+  struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '電梯井', '女兒牆'],
+  units: ['A戶', 'B戶', '梯廳', '走道', '樓梯間'],
+  rooms: ['客廳', '餐廳', '廚房', '主臥', '次臥', '浴室', '陽台', '玄關'],
+  outer: ['東向外牆', '西向外牆', '南向外牆', '北向外牆', '屋頂', '中庭', '車道', '大門', '圍牆'] };
+// 建案位置規劃可以點的選項（點了才會出現在開單畫面；不夠可以「＋ 自己加」）
+const LOC_OPTS = {
+  struct: ['柱', '樑', '版', '牆', '樓梯', '基礎', '筏基', '電梯井', '女兒牆', '陽台', '雨遮', '屋突', '地下室外牆', '車道'],
+  units: ['A戶', 'B戶', 'C戶', 'D戶', 'E戶', 'F戶', 'G戶', 'H戶', '梯廳', '走道', '樓梯間', '電梯廳', '管委會', '交誼廳', '健身房', '垃圾間', '停車場'],
+  rooms: ['客廳', '餐廳', '廚房', '主臥', '次臥', '書房', '和室', '浴室', '主浴', '客浴', '陽台', '工作陽台', '玄關', '走道', '儲藏室', '更衣室'],
+  outer: ['東向外牆', '西向外牆', '南向外牆', '北向外牆', '屋頂', '中庭', '車道', '大門', '圍牆', '景觀', '排水溝', '人行道', '機房', '水塔']
+};
+let plSel = null;
+const plChip = (k, x) => `<button class="chip ${plSel[k].includes(x) ? 'on' : ''}" onclick="plTog('${k}',${jsq(x)},this)">${esc(x)}</button>`;
+function plChips(k, label) {
+  const opts = [...new Set(LOC_OPTS[k].concat(plSel[k]))];
+  return `<label class="f">${label}</label><div class="chips" id="plc_${k}">${opts.map(x => plChip(k, x)).join('')}<button class="chip add" onclick="plAdd('${k}')">＋ 自己加</button></div>`;
+}
+function plTog(k, x, b) {
+  const a = plSel[k], i = a.indexOf(x);
+  if (i < 0) a.push(x); else a.splice(i, 1);
+  b.classList.toggle('on', i < 0);
+}
+function plAdd(k) {
+  const x = (prompt('要加的項目（一次一個）') || '').trim().replace(/[、,，;；\s]+/g, '').slice(0, 12);
+  if (!x) return;
+  if (!plSel[k].includes(x)) plSel[k].push(x);
+  const box = $('plc_' + k), had = [...box.children].find(b => b.textContent === x);
+  if (had) had.classList.add('on'); else box.lastElementChild.insertAdjacentHTML('beforebegin', plChip(k, x));
+}
+const splitList = s => [...new Set(String(s || '').split(/[、,，;；\s]+/).map(x => x.trim()).filter(Boolean))];
+function floorsOf(l) {
+  const a = [];
+  for (let i = l.b || 0; i >= 1; i--) a.push('B' + i);
+  for (let i = 1; i <= (l.n || 0); i++) a.push(i + 'F');
+  for (let i = 1; i <= (l.r || 0); i++) a.push('R' + i + 'F');
+  return a.concat((l.floorsX || []).filter(x => !a.includes(x)));
+}
+function editProject(id) {
+  const p = id ? state.projects.find(x => x.id === id) : null, l = (p && p.loc) || LOC_DEF;
+  plSel = { struct: (l.struct || []).slice(), units: (l.units || []).slice(), rooms: (l.rooms || []).slice(), outer: (l.outer || []).slice() };
+  const txt = (k, label, hint) => `<label class="f">${label}</label><textarea id="pl_${k}" rows="2" style="min-height:0" placeholder="${esc(hint)}">${esc((l[k] || []).join('、'))}</textarea>`;
+  const num = (k, label) => `<label style="flex:1;font-size:14px;min-width:0">${label}<input type="number" inputmode="numeric" id="pl_${k}" min="0" max="80" value="${l[k] || 0}" style="display:block;width:100%;margin-top:2px"></label>`;
+  sheet(`<h3>${p ? '修改建案' : '新增建案'}</h3><label class="f">建案名稱</label><input type="text" id="pjn" value="${esc(p ? p.name : '')}">
+    <h3 style="margin-top:16px">位置規劃（開單時用點的）</h3>
+    ${p && !p.loc ? '<div class="muted" style="color:#e8590c">這個建案還沒設定，下面是預設值，改好按儲存。</div>' : ''}
+    <div class="muted">下面的項目點一下選、再點一下取消，<b>選了的</b>開單時才會出現。</div>
+    ${txt('bldgs', '棟別（只有一棟就空白，開單時不會出現；多棟用「、」分開）', '例如：A、B、C')}
+    <label class="f">樓層</label><div class="row">${num('b', '地下幾層')}${num('n', '地上幾層')}${num('r', '屋突幾層')}</div>
+    ${txt('floorsX', '另外的樓層（可不填）', '例如：夾層、機房層')}
+    ${plChips('struct', '位置：結構')}
+    ${plChips('rooms', '位置：空間')}
+    ${plChips('outer', '位置：室外')}
+    ${plChips('units', '戶別／公設')}
+    ${p ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="pjd" ${p.disabled ? 'checked' : ''}> 停用（完工的建案，不再出現在選單）</label>` : ''}
+    <button class="btn block" onclick="saveProject('${p ? p.id : ''}',this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function saveProject(id, b) {
+  b.disabled = true;
+  const loc = { b: +$('pl_b').value || 0, n: +$('pl_n').value || 0, r: +$('pl_r').value || 0 };
+  ['bldgs', 'floorsX'].forEach(k => { loc[k] = splitList($('pl_' + k).value); });
+  // 點選的項目照選項清單的順序存（開單畫面排起來比較整齊）
+  ['struct', 'units', 'rooms', 'outer'].forEach(k => { loc[k] = [...new Set(LOC_OPTS[k].concat(plSel[k]))].filter(x => plSel[k].includes(x)); });
+  const p = { id: id || uid(), name: $('pjn').value.trim(), disabled: !!($('pjd') && $('pjd').checked), loc };
+  try {
+    const r = await api('saveProject', { project: p });
+    p.loc = r.loc;
+    const i = state.projects.findIndex(x => x.id === p.id);
+    if (i >= 0) state.projects[i] = p; else { state.projects.push(p); localStorage.setItem(LS('dfi_pid'), p.id); }
+    persistNow(); closeLayer(); render(); toast('已儲存');
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+// ── 測試完歸零（後台）──
+function resetData() {
+  sheet(`<h3>🧹 ${SOLO ? '資料歸零' : '測試資料歸零'}</h3>
+    <div class="muted">${SOLO ? '清掉的資料不能復原（照片也會刪掉），要的話先備份。' : '清掉的資料不能復原（照片會丟到雲端硬碟垃圾桶，30 天內還能救）。帳號都會留著。'}</div>
+    <label style="display:block;margin-top:12px"><input type="radio" name="rsm" value="defects" checked> 只清<b>缺失</b>（建案、廠商留著）</label>
+    <label style="display:block;margin-top:8px"><input type="radio" name="rsm" value="all"> 全部清：缺失＋<b>建案、廠商</b>、自己加的工項／常用語</label>
+    <label class="f">確定的話，打「歸零」兩個字</label><input type="text" id="rsc">
+    <button class="btn block" style="background:#c92a2a" onclick="doReset(this)">清除</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+// ── 單機版：備份／還原 ──
+async function soloBackup() {
+  try {
+    await syncNow();
+    const o = await SoloBackend.backup(), at = new Date();
+    const name = '缺失改善備份_' + ymd(at).replace(/-/g, '') + '.json';
+    const file = new File([JSON.stringify(o)], name, { type: 'application/json' });
+    lastExport = { file, url: URL.createObjectURL(file), name, text: '缺失改善系統備份 ' + ymd(at) };
+    const n = Object.keys(o.photos).length, mb = (file.size / 1048576).toFixed(1);
+    const canFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    sheet(`<h3>📦 備份檔做好了</h3><div class="muted">${esc(name)}（${mb} MB，照片 ${n} 張）</div>
+      <div class="muted" style="margin-top:6px">存到手機以外的地方才安全：傳到 LINE「Keep 筆記」或自己的聊天室、存到雲端硬碟都可以。</div>
+      ${canFile ? '<button class="btn line block" onclick="shareBackup()">分享／存到別的地方</button>' : ''}
+      <a class="btn ${canFile ? 'ghost' : ''} block" href="${lastExport.url}" download="${esc(name)}" onclick="markBackup()">下載備份檔</a>
+      <button class="btn ghost block" onclick="closeLayer()">關閉</button>`);
+  } catch (e) { toast(e.message); }
+}
+function markBackup() { localStorage.setItem(LS('dfi_lastBackup'), new Date().toISOString()); }
+async function shareBackup() {
+  try { await navigator.share({ files: [lastExport.file], title: lastExport.name }); markBackup(); toast('已備份'); closeLayer(); render(); }
+  catch (e) { if (e.name !== 'AbortError') toast('不能分享，請按「下載備份檔」'); }
+}
+async function soloRestore(f) {
+  if (!f) return;
+  try {
+    const o = JSON.parse(await f.text());
+    if (!confirm(`用這個備份檔（${String(o.at || '').slice(0, 10)}）還原？\n這支手機現在的資料會被蓋掉。`)) return;
+    await soloReady();
+    await SoloBackend.restore(o);
+    await idbDel('kv', CK); await idbDel('kv', OK);
+    localStorage.removeItem(LS('dfi_draft'));
+    toast('已還原'); setTimeout(() => location.reload(), 600);
+  } catch (e) { toast(e.message.includes('JSON') ? '這不是缺失改善系統的備份檔' : e.message); }
+}
+async function doReset(b) {
+  const mode = document.querySelector('input[name=rsm]:checked').value, c = $('rsc').value.trim();
+  if (c !== '歸零') { toast('請打「歸零」'); return; }
+  b.disabled = true;
+  try {
+    const r = await api('resetData', { mode, confirm: c });
+    outbox = emptyBox(); state = emptyState();
+    localStorage.removeItem(LS('dfi_draft')); localStorage.removeItem(LS('dfi_last'));
+    await persistNow(); await pull(true);
+    closeLayer(); stack.length = 0; view = { name: 'start' }; render();
+    toast(`已清除 ${r.defects} 筆缺失、${r.photos} 張照片`);
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+let users = null;
+VIEWS.users = () => {
+  hdr('帳號管理', { right: ['＋ 新增', () => editUser(null)] });
+  if (!users) { api('listUsers').then(r => { users = r.users; render(); }).catch(e => toast(e.message)); return '<div class="empty">讀取中…</div>'; }
+  return `<div class="card">${users.map(u => `<div class="user-row" onclick="editUser(${jsq(u.user)})"><div class="grow"><b>${esc(u.name)}</b><div class="muted">${esc(u.user)}・${ROLE_NAME[u.role]}</div></div>${u.disabled ? '<span class="tag pend">停用</span>' : ''}</div>`).join('')}</div>
+    <div class="muted">工地人員：可以開單、複查、新增廠商。後台：另外可以管理建案、帳號、修改已結案的缺失。</div>`;
+};
+function editUser(user) {
+  const u = user ? users.find(x => x.user === user) : null;
+  sheet(`<h3>${u ? '修改帳號' : '新增帳號'}</h3>
+    <label class="f">帳號（登入用，英文、數字）</label><input type="text" id="uu" value="${esc(u ? u.user : '')}" data-old="${esc(u ? u.user : '')}" autocapitalize="off">
+    ${u ? '<div class="muted">改了之後要用新帳號登入，密碼不變；他開過的單、加過的常用語會跟著改。</div>' : ''}
+    <label class="f">姓名</label><input type="text" id="un" value="${esc(u ? u.name : '')}">
+    <label class="f">角色</label><select id="ur"><option value="staff">工地人員</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>後台</option></select>
+    <label class="f">${u ? '重設密碼（不改就空白）' : '密碼（至少 6 個字）'}</label><input type="password" id="up" autocomplete="new-password">
+    ${u ? `<label style="display:block;margin-top:12px"><input type="checkbox" id="ud" ${u.disabled ? 'checked' : ''}> 停用這個帳號</label>` : ''}
+    <button class="btn block" onclick="saveUser(${u ? 'false' : 'true'},this)">儲存</button><button class="btn ghost block" onclick="closeLayer()">取消</button>`);
+}
+async function saveUser(isNew, b) {
+  b.disabled = true;
+  try {
+    const old = $('uu').dataset.old, nu = $('uu').value.trim().toLowerCase();
+    if (!isNew && nu !== old && !confirm(`帳號「${old}」改成「${nu}」？之後要用新帳號登入。`)) { b.disabled = false; return; }
+    const r = await api('saveUser', { isNew, user: isNew ? nu : old, newUser: isNew ? undefined : nu, name: $('un').value, role: $('ur').value, pass: $('up').value || undefined, disabled: !!($('ud') && $('ud').checked) });
+    if (r.token) setAuth(r);   // 改的是自己：換成新的登入
+    users = null; closeLayer(); render(); toast('已儲存');
+  } catch (e) { toast(e.message); b.disabled = false; }
+}
+
+// ══ 舊的廠商回報連結（?v=）：功能已停用，只顯示說明 ══
+function renderVendorPortal() {
+  $('backBtn').style.display = 'none'; $('nav').style.display = 'none';
+  $('title').textContent = '缺失改善';
+  $('app').innerHTML = '<div class="card login"><h3>這個連結已停用</h3><p class="muted">缺失改善通知改用 PDF 傳送，改善完成請直接通知工地人員複查。</p></div>';
+}
+
+// ── 啟動 ─────────────────────────────
+(async () => {
+  if (VCODE) { render(); return; }
+  // 單機版用過了（切回來、或登入資料不見）：直接進去，不用再填名字
+  if (SOLO) { loadTrial().then(() => render(true)); trialSend(); }
+  if (SOLO && !auth) { try { setAuth(await api('soloAuth', {})); } catch (e) {} }
+  if (SOLO && auth) {
+    const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
+    if (saved) state = saved;
+    if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
+    fixLoaded();
+    resumeDraft();
+    render();
+    soloStart(true).then(() => { if (pendingCount()) sync(); });
+  } else if (auth) {
+    const saved = await idbGet('kv', CK), box = await idbGet('kv', OK);
+    if (saved) state = saved;
+    if (box) { outbox = box; seq = Math.max(0, ...Object.values(outbox.d)); }
+    fixLoaded(); migrateLocalCustoms();
+    // 剛剛有沒存完的新缺失 → 直接回到新增畫面
+    resumeDraft();
+    render();
+    pull(true);
+  } else render();
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+})();
+</script>
+</body>
+</html>

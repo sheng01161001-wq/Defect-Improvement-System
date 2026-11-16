@@ -1,10 +1,10 @@
 {
-  "id": "./?app=solo",
+  "id": "./solo.html",
   "name": "缺失改善單機版",
   "short_name": "缺失改善單機版",
   "description": "工地巡檢缺失（單機版：資料只在這支手機，不用帳號）：拍照開單、PDF 傳 LINE 給廠商、複查結案",
   "lang": "zh-Hant-TW",
-  "start_url": "./?app=solo",
+  "start_url": "./solo.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
